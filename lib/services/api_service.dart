@@ -358,6 +358,59 @@ class ApiService {
     }
   }
 
+  Future<Job> createJob(Map<String, dynamic> jobData) async {
+    final url = Uri.parse('$_baseUrl/jobs');
+    try {
+      final response = await http.post(url,
+          headers: _headers(), body: jsonEncode(jobData));
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes))
+            as Map<String, dynamic>;
+        return Job.fromJson(data);
+      }
+      throw ApiException(_extractErrorMessage(response),
+          statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao criar vaga: $e');
+    }
+  }
+
+  Future<Job> updateJob(String jobId, Map<String, dynamic> jobData) async {
+    final url = Uri.parse('$_baseUrl/jobs/$jobId');
+    try {
+      final response = await http.put(url,
+          headers: _headers(), body: jsonEncode(jobData));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes))
+            as Map<String, dynamic>;
+        return Job.fromJson(data);
+      }
+      throw ApiException(_extractErrorMessage(response),
+          statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao atualizar vaga: $e');
+    }
+  }
+
+  Future<Job> closeJob(String jobId) async {
+    final url = Uri.parse('$_baseUrl/jobs/$jobId/close');
+    try {
+      final response = await http.patch(url, headers: _headers());
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes))
+            as Map<String, dynamic>;
+        return Job.fromJson(data);
+      }
+      throw ApiException(_extractErrorMessage(response),
+          statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao encerrar vaga: $e');
+    }
+  }
+
   // ==========================================
   // LIKES & MATCHES
   // ==========================================

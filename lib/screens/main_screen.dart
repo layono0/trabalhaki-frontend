@@ -8,6 +8,7 @@ import '../widgets/job_card.dart';
 import '../widgets/job_detail_modal.dart';
 import '../widgets/match_modal.dart';
 import 'tabs/chat_view.dart';
+import 'tabs/company_jobs_tab.dart';
 import 'tabs/curtidas_tab.dart';
 import 'tabs/matches_tab.dart';
 import 'tabs/profile_tab.dart';
@@ -239,12 +240,20 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildCurrentContent() {
     switch (_activeTab) {
       case "vagas":
-        return VagasTab(
-          jobs: _jobs,
-          onSwipe: _handleSwipe,
-          onCardClick: (job) => setState(() => _selectedJob = job),
-          onResetJobs: _refreshJobs,
-        );
+        if (widget.userRole == "candidate") {
+          return VagasTab(
+            jobs: _jobs,
+            onSwipe: _handleSwipe,
+            onCardClick: (job) => setState(() => _selectedJob = job),
+            onResetJobs: _refreshJobs,
+          );
+        } else {
+          return CompanyJobsTab(
+            jobs: _jobs,
+            onRefresh: _refreshJobs,
+            onJobClick: (job) => setState(() => _selectedJob = job),
+          );
+        }
       case "curtidas":
         return CurtidasTab(
           likedJobs: _likedJobs,

@@ -19,6 +19,7 @@ class Job {
   final int? compatibilityScore;
   final int? companyId;
   final Map<String, dynamic>? explanation;
+  final String? status;
 
   const Job({
     required this.id,
@@ -39,6 +40,7 @@ class Job {
     this.compatibilityScore,
     this.companyId,
     this.explanation,
+    this.status,
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
@@ -167,6 +169,7 @@ class Job {
       compatibilityScore: score,
       companyId: raw['companyId'] is int ? raw['companyId'] : int.tryParse(raw['companyId']?.toString() ?? ''),
       explanation: expl,
+      status: raw['status']?.toString(),
     );
   }
 }

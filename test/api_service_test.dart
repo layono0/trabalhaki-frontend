@@ -195,5 +195,41 @@ void main() {
       final message = ApiService.instance.extractErrorMessage(response);
       expect(message, "Email ou senha inválidos");
     });
+
+    test('extractErrorMessage handles business rule conflict error from registration', () {
+      final backendConflictJson = {
+        "timestamp": "2026-10-08T10:00:00",
+        "status": 400,
+        "error": "Bad Request",
+        "message": "Email já cadastrado no sistema",
+        "path": "/api/v1/auth/register-candidate"
+      };
+      final response = http.Response(
+        jsonEncode(backendConflictJson),
+        400,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+
+      final message = ApiService.instance.extractErrorMessage(response);
+      expect(message, "Email já cadastrado no sistema");
+    });
+
+    test('extractErrorMessage handles CNPJ validation failure from company registration', () {
+      final backendCnpjErrorJson = {
+        "timestamp": "2026-10-08T10:00:00",
+        "status": 400,
+        "error": "Bad Request",
+        "message": "CNPJ inválido estruturalmente",
+        "path": "/api/v1/auth/register-company"
+      };
+      final response = http.Response(
+        jsonEncode(backendCnpjErrorJson),
+        400,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+
+      final message = ApiService.instance.extractErrorMessage(response);
+      expect(message, "CNPJ inválido estruturalmente");
+    });
   });
 }
