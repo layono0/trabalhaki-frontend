@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../data/mock_data.dart';
+
+import '../models/candidate_profile.dart';
 import '../models/job.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/job_card.dart';
 import '../widgets/job_detail_modal.dart';
 import '../widgets/match_modal.dart';
+import '../widgets/status_view.dart';
 import 'tabs/chat_view.dart';
-import 'tabs/company_jobs_tab.dart';
 import 'tabs/curtidas_tab.dart';
 import 'tabs/matches_tab.dart';
 import 'tabs/profile_tab.dart';
@@ -17,11 +18,13 @@ import 'tabs/vagas_tab.dart';
 class MainScreen extends StatefulWidget {
   final String userRole;
   final VoidCallback onLogout;
+  final ApiService? api;
 
   const MainScreen({
     super.key,
     this.userRole = "candidate",
     required this.onLogout,
+    this.api,
   });
 
   @override
@@ -34,10 +37,25 @@ class _MainScreenState extends State<MainScreen> {
   final List<Job> _likedJobs = [];
   final List<MatchItem> _matches = [];
 
+  ApiService get _api => widget.api ?? ApiService.instance;
   bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _jobsError;
+  String? _likesError;
+  String? _matchesError;
+  String? _modality;
+  String? _state;
+  double? _minSalary;
+  int _jobsRequest = 0;
+  Job? _lastSkipped;
+  final Set<String> _skippedIds = {};
+  final Set<String> _pendingLikes = {};
+  final Map<String, String> _chatDrafts = {};
+  bool _likesLoading = true;
+  bool _matchesLoading = true;
   Job? _selectedJob;
-  Job? _showMatchJob;
   MatchItem? _activeChatMatch;
+  CandidateProfile? _candidateProfile;
 
   @override
   void initState() {
@@ -46,142 +64,220 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    setState(() => _isLoading = true);
+    // A failed secondary request must not hide the available jobs.
+    await Future.wait([
+      _refreshJobs(),
+      _refreshLikes(),
+      _refreshMatches(),
+      _loadProfile(),
+    ]);
+  }
+
+  Future<void> _loadProfile() async {
     try {
-      if (widget.userRole == "candidate") {
-        final jobs = await ApiService.instance.getJobRecommendations();
-        final likes = await ApiService.instance.getMyLikes();
-        final matches = await ApiService.instance.getMyMatches();
-
-        if (mounted) {
-          setState(() {
-            _jobs = jobs.isNotEmpty ? jobs : List.from(mockJobs);
-            _likedJobs.clear();
-            _likedJobs.addAll(likes);
-            _matches.clear();
-            _matches.addAll(matches);
-          });
-        }
-      } else {
-        // Company user
-        final companyJobs = await ApiService.instance.getMyCompanyJobs();
-        final matches = await ApiService.instance.getMyMatches();
-
-        if (mounted) {
-          setState(() {
-            _jobs = companyJobs.isNotEmpty ? companyJobs : List.from(mockJobs);
-            _matches.clear();
-            _matches.addAll(matches);
-          });
-        }
-      }
+      final profile = await _api.getMyCandidateProfile();
+      if (mounted) setState(() => _candidateProfile = profile);
     } catch (_) {
-      if (mounted && _jobs.isEmpty) {
-        setState(() {
-          _jobs = List.from(mockJobs);
-          _matches.addAll(mockMatches);
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // Profile remains independently recoverable from the Profile tab.
     }
   }
 
   Future<void> _refreshJobs() async {
-    try {
-      if (widget.userRole == "candidate") {
-        final jobs = await ApiService.instance.getJobRecommendations();
-        if (mounted) {
-          setState(() {
-            _jobs = jobs.isNotEmpty ? jobs : List.from(mockJobs);
-          });
-        }
-      } else {
-        final companyJobs = await ApiService.instance.getMyCompanyJobs();
-        if (mounted) {
-          setState(() {
-            _jobs = companyJobs.isNotEmpty ? companyJobs : List.from(mockJobs);
-          });
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _refreshLikes() async {
-    try {
-      final likes = await ApiService.instance.getMyLikes();
-      if (mounted) {
-        setState(() {
-          _likedJobs.clear();
-          _likedJobs.addAll(likes);
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _refreshMatches() async {
-    try {
-      final matches = await ApiService.instance.getMyMatches();
-      if (mounted) {
-        setState(() {
-          _matches.clear();
-          _matches.addAll(matches);
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _handleSwipe(Job job, SwipeDirection direction) async {
+    final request = ++_jobsRequest;
     setState(() {
-      _jobs.removeWhere((item) => item.id == job.id);
+      _isLoading = true;
+      _jobsError = null;
     });
-
-    if (direction == SwipeDirection.right) {
-      if (!_likedJobs.any((j) => j.id == job.id)) {
-        setState(() {
-          _likedJobs.add(job);
-        });
+    try {
+      final jobs = await _api.getJobRecommendations(
+        modality: _modality,
+        state: _state,
+        minSalary: _minSalary,
+      );
+      if (!mounted || request != _jobsRequest) return;
+      setState(() {
+        _jobs = jobs
+            .where(
+              (job) =>
+                  !_skippedIds.contains(job.id) &&
+                  !_likedJobs.any((liked) => liked.id == job.id) &&
+                  !_pendingLikes.contains(job.id),
+            )
+            .toList();
+      });
+    } catch (_) {
+      if (mounted && request == _jobsRequest) {
+        setState(() => _jobsError = 'Confira sua conexão e tente novamente.');
       }
-
-      try {
-        final result = await ApiService.instance.likeJob(job.id);
-        if (result.isMatch) {
-          final matchItem = MatchItem(
-            id: result.matchId ?? "m_${DateTime.now().millisecondsSinceEpoch}",
-            jobId: job.id,
-            company: job.company,
-            title: job.title,
-            logo: job.logo,
-            date: "Match realizado agora!",
-          );
-          if (mounted) {
-            setState(() {
-              _matches.removeWhere((m) => m.jobId == job.id);
-              _matches.insert(0, matchItem);
-              _showMatchJob = job;
-            });
-          }
-        }
-      } catch (_) {
-        // Continue smoothly even if offline
+    } finally {
+      if (mounted && request == _jobsRequest) {
+        setState(() => _isLoading = false);
       }
     }
   }
 
-  void _openChatWithJob(Job job) {
-    final match = _matches.firstWhere(
-      (m) => m.jobId == job.id,
-      orElse: () => MatchItem(
-        id: "m_${job.id}",
-        jobId: job.id,
-        company: job.company,
-        title: job.title,
-        logo: job.logo,
-        date: "Match realizado agora",
-      ),
-    );
+  Future<void> _applyJobFilters({
+    String? modality,
+    String? state,
+    double? minSalary,
+  }) async {
     setState(() {
-      _showMatchJob = null;
+      _modality = modality;
+      _state = state;
+      _minSalary = minSalary;
+      _lastSkipped = null;
+    });
+    await _refreshJobs();
+  }
+
+  Future<void> _refreshLikes() async {
+    setState(() => _likesLoading = true);
+    try {
+      final likes = await _api.getMyLikes();
+      if (!mounted) return;
+      setState(() {
+        _likesError = null;
+        _likedJobs
+          ..clear()
+          ..addAll(likes);
+        _jobs.removeWhere((job) => likes.any((liked) => liked.id == job.id));
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _likesError = 'Suas curtidas não puderam ser atualizadas.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _likesLoading = false);
+    }
+  }
+
+  Future<void> _refreshMatches() async {
+    setState(() => _matchesLoading = true);
+    try {
+      final matches = await _api.getMyMatches();
+      if (!mounted) return;
+      setState(() {
+        _matchesError = null;
+        _matches
+          ..clear()
+          ..addAll(matches);
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _matchesError = 'Seus matches não puderam ser atualizados.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _matchesLoading = false);
+    }
+  }
+
+  void _undoSkip() {
+    final job = _lastSkipped;
+    if (job == null) return;
+    setState(() {
+      _skippedIds.remove(job.id);
+      _jobsError = null;
+      if (!_jobs.any((item) => item.id == job.id)) _jobs.insert(0, job);
+      _lastSkipped = null;
+    });
+  }
+
+  Future<void> _handleSwipe(Job job, SwipeDirection direction) async {
+    if (_isSubmitting || _pendingLikes.contains(job.id)) return;
+    if (direction == SwipeDirection.left) {
+      setState(() {
+        _jobs.removeWhere((item) => item.id == job.id);
+        _skippedIds.add(job.id);
+        _lastSkipped = job;
+      });
+      return;
+    }
+    if (_likedJobs.any((liked) => liked.id == job.id)) {
+      _notify('Você já demonstrou interesse nesta vaga.');
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+      _pendingLikes.add(job.id);
+      // Remove immediately to preserve the swipe transition, but only confirm after success.
+      _jobs.removeWhere((item) => item.id == job.id);
+    });
+    try {
+      final result = await _api.likeJob(job.id);
+      if (!mounted) return;
+      setState(() {
+        if (!_likedJobs.any((item) => item.id == job.id)) {
+          _likedJobs.insert(0, job);
+        }
+      });
+      if (result.isMatch) {
+        // Never invent a conversation id. Refresh if the response omits it.
+        if (result.matchId != null) {
+          final match = MatchItem(
+            id: result.matchId!,
+            jobId: job.id,
+            company: job.company,
+            title: job.title,
+            logo: job.logo,
+            date: 'Match realizado agora',
+          );
+          setState(() {
+            _matches.removeWhere((item) => item.id == match.id);
+            _matches.insert(0, match);
+          });
+        } else {
+          await _refreshMatches();
+        }
+        if (!mounted) return;
+        showMatchModal(
+          context: context,
+          job: job,
+          candidatePhoto: _candidateProfile?.photoUrl,
+          candidateName: _candidateProfile?.name,
+          onChatNow: () => _openChatWithJob(job),
+        );
+      } else {
+        _notify('Interesse registrado. A vaga está em Curtidas.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (!_jobs.any((item) => item.id == job.id)) _jobs.insert(0, job);
+      });
+      _notify(
+        'Não foi possível confirmar seu interesse. A vaga voltou para a lista.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _pendingLikes.remove(job.id);
+        });
+      }
+    }
+  }
+
+  void _notify(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _openChatWithJob(Job job) {
+    final matching = _matches.where((match) => match.jobId == job.id);
+    if (matching.isEmpty) {
+      _notify(
+        'Seu match foi confirmado. Atualize Matches para abrir a conversa.',
+      );
+      setState(() => _activeTab = 'matches');
+      return;
+    }
+    final match = matching.first;
+    setState(() {
       _activeChatMatch = match;
       _activeTab = "chat";
     });
@@ -198,185 +294,151 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final isChatActive = _activeTab == "chat";
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          // Content Area
-          Positioned.fill(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildCurrentContent(),
-          ),
-
-          // Detail Modal (Slide Up Fullscreen)
-          if (_selectedJob != null)
+    return PopScope(
+      canPop: _selectedJob == null && !isChatActive,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() {
+          if (_selectedJob != null) {
+            _selectedJob = null;
+          } else {
+            _activeTab = 'matches';
+          }
+        });
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            // Content Area
             Positioned.fill(
-              child: JobDetailModal(
-                job: _selectedJob!,
-                onClose: () => setState(() => _selectedJob = null),
-                onMatch: (job) {
-                  _handleSwipe(job, SwipeDirection.right);
-                },
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: _buildCurrentContent(),
+                ),
               ),
             ),
 
-          // Match Celebration Modal Overlay
-          if (_showMatchJob != null)
-            Positioned.fill(
-              child: MatchModal(
-                job: _showMatchJob!,
-                onClose: () => setState(() => _showMatchJob = null),
-                onChatNow: () => _openChatWithJob(_showMatchJob!),
+            // Detail Modal (Slide Up Fullscreen)
+            if (_selectedJob != null)
+              Positioned.fill(
+                child: JobDetailModal(
+                  job: _selectedJob!,
+                  onClose: () => setState(() => _selectedJob = null),
+                  onMatch: (job) {
+                    _handleSwipe(job, SwipeDirection.right);
+                  },
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
+        bottomNavigationBar: isChatActive
+            ? null
+            : _buildCustomBottomNavigationBar(),
       ),
-      bottomNavigationBar:
-          isChatActive ? null : _buildCustomBottomNavigationBar(),
     );
   }
 
   Widget _buildCurrentContent() {
     switch (_activeTab) {
       case "vagas":
-        if (widget.userRole == "candidate") {
-          return VagasTab(
-            jobs: _jobs,
-            onSwipe: _handleSwipe,
-            onCardClick: (job) => setState(() => _selectedJob = job),
-            onResetJobs: _refreshJobs,
-          );
-        } else {
-          return CompanyJobsTab(
-            jobs: _jobs,
-            onRefresh: _refreshJobs,
-            onJobClick: (job) => setState(() => _selectedJob = job),
+        return VagasTab(
+          jobs: _jobs,
+          isLoading: _isLoading,
+          isSubmitting: _isSubmitting,
+          error: _jobsError,
+          activeModality: _modality,
+          activeState: _state,
+          activeMinSalary: _minSalary,
+          onUndo: _lastSkipped == null ? null : _undoSkip,
+          onSwipe: _handleSwipe,
+          onCardClick: (job) => setState(() => _selectedJob = job),
+          onResetJobs: _refreshJobs,
+          onApplyFilters: _applyJobFilters,
+        );
+      case "curtidas":
+        if (_likesLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_likesError != null && _likedJobs.isEmpty) {
+          return StatusView(
+            title: 'Não foi possível carregar suas curtidas',
+            message: _likesError!,
+            actionLabel: 'Tentar novamente',
+            onAction: _refreshLikes,
+            icon: LucideIcons.heart,
           );
         }
-      case "curtidas":
         return CurtidasTab(
           likedJobs: _likedJobs,
+          errorMessage: _likesError,
+          onExplore: () => setState(() => _activeTab = 'vagas'),
           onJobClick: (job) => setState(() => _selectedJob = job),
           onRefresh: _refreshLikes,
         );
       case "matches":
+        if (_matchesLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_matchesError != null && _matches.isEmpty) {
+          return StatusView(
+            title: 'Não foi possível carregar seus matches',
+            message: _matchesError!,
+            actionLabel: 'Tentar novamente',
+            onAction: _refreshMatches,
+            icon: LucideIcons.messageCircle,
+          );
+        }
         return MatchesTab(
           matches: _matches,
+          errorMessage: _matchesError,
+          onExplore: () => setState(() => _activeTab = 'vagas'),
           onSelectMatch: _openChatWithMatch,
           onRefresh: _refreshMatches,
         );
       case "chat":
+        if (_activeChatMatch == null) return const SizedBox.shrink();
         return ChatView(
-          match: _activeChatMatch ?? (_matches.isNotEmpty ? _matches.first : mockMatches.first),
+          key: ValueKey(_activeChatMatch!.id),
+          api: widget.api,
+          initialDraft: _chatDrafts[_activeChatMatch!.id] ?? '',
+          onDraftChanged: (text) => _chatDrafts[_activeChatMatch!.id] = text,
+          match: _activeChatMatch!,
           onBack: () => setState(() => _activeTab = "matches"),
         );
       case "perfil":
-        return ProfileTab(onLogout: widget.onLogout);
+        return ProfileTab(onLogout: widget.onLogout, api: widget.api);
       default:
         return Container();
     }
   }
 
   Widget _buildCustomBottomNavigationBar() {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(
-          top: BorderSide(color: AppColors.gray100),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
+    const destinations = [
+      NavigationDestination(icon: Icon(LucideIcons.briefcase), label: 'Vagas'),
+      NavigationDestination(icon: Icon(LucideIcons.heart), label: 'Curtidas'),
+      NavigationDestination(
+        icon: Icon(LucideIcons.messageCircle),
+        label: 'Matches',
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(
-            id: "vagas",
-            label: "Vagas",
-            icon: LucideIcons.briefcase,
+      NavigationDestination(icon: Icon(LucideIcons.user), label: 'Perfil'),
+    ];
+    const tabs = ['vagas', 'curtidas', 'matches', 'perfil'];
+    return Material(
+      color: AppColors.surface,
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: NavigationBar(
+            selectedIndex: tabs.indexOf(_activeTab).clamp(0, tabs.length - 1),
+            onDestinationSelected: (index) => setState(() {
+              _selectedJob = null;
+              _activeTab = tabs[index];
+            }),
+            destinations: destinations,
           ),
-          _buildNavItem(
-            id: "curtidas",
-            label: "Curtidas",
-            icon: LucideIcons.heart,
-          ),
-          _buildNavItem(
-            id: "matches",
-            label: "Matches",
-            icon: LucideIcons.messageCircle,
-            showBadge: _matches.isNotEmpty,
-          ),
-          _buildNavItem(
-            id: "perfil",
-            label: "Perfil",
-            icon: LucideIcons.user,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required String id,
-    required String label,
-    required IconData icon,
-    bool showBadge = false,
-  }) {
-    final isActive = _activeTab == id;
-    final color = isActive ? AppColors.primary : const Color(0xFF94A3B8);
-
-    return InkWell(
-      onTap: () => setState(() => _activeTab = id),
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      child: Container(
-        width: 68,
-        height: double.infinity,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  icon,
-                  size: 24,
-                  color: color,
-                ),
-                if (showBadge)
-                  Positioned(
-                    top: -2,
-                    right: -4,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                color: color,
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -135,6 +135,17 @@ void main() {
       expect(profile.modality, "Remoto");
       expect(profile.skills.length, 3);
       expect(profile.completionPercentage, 85);
+
+      final serialized = profile.toJson();
+      expect(serialized['skillNames'], ["Java", "Spring Boot", "SQL"]);
+      expect(serialized['skills'], ["Java", "Spring Boot", "SQL"]);
+
+      // Verify empty profile has no mock data
+      const emptyProfile = CandidateProfile();
+      expect(emptyProfile.name, "");
+      expect(emptyProfile.completionPercentage, 0);
+      expect(emptyProfile.skills, isEmpty);
+      expect(emptyProfile.avatarUrl, isNull);
     });
 
     test('CompanyProfile model deserialization', () {

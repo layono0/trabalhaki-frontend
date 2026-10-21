@@ -45,7 +45,14 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final user = await ApiService.instance.login(email, password);
       if (mounted) {
-        widget.onLogin(user.isCandidate ? "candidate" : "company");
+        if (user.isCompany) {
+          await ApiService.instance.logout();
+          setState(() {
+            _errorMessage = "Este aplicativo é exclusivo para candidatos. O portal para empresas estará disponível na versão Web.";
+          });
+          return;
+        }
+        widget.onLogin("candidate");
       }
     } catch (e) {
       if (mounted) {
@@ -385,42 +392,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             Expanded(
                               child: Text(
                                 "Candidato: candidato@trabalhaki.com (123456)",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF1E40AF),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _emailController.text = "empresa@trabalhaki.com";
-                          _passwordController.text = "123456";
-                        });
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFBFDBFE)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(LucideIcons.building2, size: 16, color: Color(0xFF2563EB)),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "Empresa: empresa@trabalhaki.com (123456)",
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,

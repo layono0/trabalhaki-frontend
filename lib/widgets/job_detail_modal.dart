@@ -165,7 +165,11 @@ class JobDetailModal extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 24),
+
+                        // Explainable Compatibility Section
+                        if (job.compatibilityScore != null || (job.explanation != null && job.explanation!.isNotEmpty))
+                          _buildCompatibilitySection(),
 
                         // About Section
                         _buildSectionHeader("Sobre a vaga"),
@@ -361,6 +365,158 @@ class JobDetailModal extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompatibilitySection() {
+    final explanation = job.explanation;
+    final score = job.compatibilityScore;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.secondary.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(LucideIcons.sparkles, color: AppColors.primary, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    "Compatibilidade",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              if (score != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "$score% match",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (explanation != null && explanation.isNotEmpty) ...[
+            if (explanation.containsKey('skills'))
+              _buildExplanationRow(
+                icon: LucideIcons.code,
+                label: "Habilidades",
+                detail: explanation['skills'].toString(),
+              ),
+            if (explanation.containsKey('experience'))
+              _buildExplanationRow(
+                icon: LucideIcons.briefcase,
+                label: "Experiência",
+                detail: explanation['experience'].toString(),
+              ),
+            if (explanation.containsKey('salary'))
+              _buildExplanationRow(
+                icon: LucideIcons.dollarSign,
+                label: "Salário",
+                detail: explanation['salary'].toString(),
+              ),
+            if (explanation.containsKey('modality'))
+              _buildExplanationRow(
+                icon: LucideIcons.building,
+                label: "Modalidade",
+                detail: explanation['modality'].toString(),
+              ),
+            if (explanation.containsKey('location'))
+              _buildExplanationRow(
+                icon: LucideIcons.mapPin,
+                label: "Localização",
+                detail: explanation['location'].toString(),
+              ),
+          ] else ...[
+            const Text(
+              "Esta vaga foi recomendada com base nas competências e preferências do seu perfil.",
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExplanationRow({
+    required IconData icon,
+    required String label,
+    required String detail,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.gray50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: AppColors.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

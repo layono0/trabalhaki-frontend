@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../models/candidate_profile.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -18,73 +19,70 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  bool _isCandidate = true;
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
-  // Candidate controllers
-  final _candidateNameController = TextEditingController();
-  final _candidateEmailController = TextEditingController();
-  final _candidatePasswordController = TextEditingController();
-
-  // Company controllers
-  final _companyNameController = TextEditingController();
-  final _companyCnpjController = TextEditingController();
-  final _companyEmailController = TextEditingController();
-  final _companyPasswordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _desiredRoleController = TextEditingController();
 
   @override
   void dispose() {
-    _candidateNameController.dispose();
-    _candidateEmailController.dispose();
-    _candidatePasswordController.dispose();
-    _companyNameController.dispose();
-    _companyCnpjController.dispose();
-    _companyEmailController.dispose();
-    _companyPasswordController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _desiredRoleController.dispose();
     super.dispose();
   }
 
   Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final desiredRole = _desiredRoleController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = "Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      setState(() => _errorMessage = "Por favor, insira um endereço de e-mail válido.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() => _errorMessage = "A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      if (_isCandidate) {
-        final name = _candidateNameController.text.trim();
-        final email = _candidateEmailController.text.trim();
-        final password = _candidatePasswordController.text;
+      final user = await ApiService.instance.registerCandidate(name, email, password);
 
-        if (name.isEmpty || email.isEmpty || password.isEmpty) {
-          throw ApiException("Por favor preencha todos os campos.");
+      // If candidate already informed desired role, initialize profile
+      if (desiredRole.isNotEmpty) {
+        try {
+          await ApiService.instance.updateCandidateProfile(
+            CandidateProfile(
+              name: name,
+              desiredRole: desiredRole,
+              skills: const [],
+            ),
+          );
+        } catch (_) {
+          // Non-blocking on initial profile enrichment
         }
-        if (password.length < 6) {
-          throw ApiException("A senha deve ter no mínimo 6 caracteres.");
-        }
+      }
 
-        final user = await ApiService.instance.registerCandidate(name, email, password);
-        if (mounted) {
-          widget.onSuccess(user.isCandidate ? "candidate" : "company");
-        }
-      } else {
-        final companyName = _companyNameController.text.trim();
-        final cnpj = _companyCnpjController.text.trim();
-        final email = _companyEmailController.text.trim();
-        final password = _companyPasswordController.text;
-
-        if (companyName.isEmpty || cnpj.isEmpty || email.isEmpty || password.isEmpty) {
-          throw ApiException("Por favor preencha todos os campos.");
-        }
-        if (password.length < 6) {
-          throw ApiException("A senha deve ter no mínimo 6 caracteres.");
-        }
-
-        await ApiService.instance.registerCompany(companyName, cnpj, email, password);
-        if (mounted) {
-          widget.onSuccess("company");
-        }
+      if (mounted) {
+        widget.onSuccess(user.isCandidate ? "candidate" : "candidate");
       }
     } catch (e) {
       if (mounted) {
@@ -138,93 +136,22 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Title
+              // Title & Subtitle
               const Text(
                 "Criar Conta",
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 6),
               const Text(
-                "Cadastre-se para encontrar matches perfeitos",
+                "Cadastre-se para encontrar vagas ideais para seu perfil",
                 style: TextStyle(
                   fontSize: 15,
                   color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Account Type Selector
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.gray100,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isCandidate = true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _isCandidate ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: _isCandidate
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.04),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    )
-                                  ]
-                                : null,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            "Sou Candidato",
-                            style: TextStyle(
-                              fontWeight: _isCandidate ? FontWeight.bold : FontWeight.w500,
-                              color: _isCandidate ? AppColors.primary : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isCandidate = false),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: !_isCandidate ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: !_isCandidate
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.04),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    )
-                                  ]
-                                : null,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            "Sou Empresa",
-                            style: TextStyle(
-                              fontWeight: !_isCandidate ? FontWeight.bold : FontWeight.w500,
-                              color: !_isCandidate ? AppColors.primary : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -234,7 +161,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
+                  margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEE2E2),
                     borderRadius: BorderRadius.circular(12),
@@ -254,33 +181,79 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
 
-              // Fields
-              if (_isCandidate) ...[
-                _buildField("Nome completo", "ex: Ana Silva", _candidateNameController),
-                const SizedBox(height: 16),
-                _buildField("Email", "ex: ana.silva@email.com", _candidateEmailController,
-                    keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 16),
-                _buildField("Senha", "Mínimo 6 caracteres", _candidatePasswordController,
-                    obscureText: true),
-              ] else ...[
-                _buildField("Nome da Empresa", "ex: Tech Solutions", _companyNameController),
-                const SizedBox(height: 16),
-                _buildField("CNPJ (apenas números ou formatado)", "33.000.167/0001-01",
-                    _companyCnpjController,
-                    keyboardType: TextInputType.number),
-                const SizedBox(height: 16),
-                _buildField("Email corporativo", "ex: contato@empresa.com",
-                    _companyEmailController,
-                    keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 16),
-                _buildField("Senha", "Mínimo 6 caracteres", _companyPasswordController,
-                    obscureText: true),
-              ],
+              // Form fields
+              _buildInputLabel("Nome completo *"),
+              _buildTextField(
+                controller: _nameController,
+                hint: "ex: Ana Silva",
+                icon: LucideIcons.user,
+              ),
+              const SizedBox(height: 18),
 
+              _buildInputLabel("E-mail *"),
+              _buildTextField(
+                controller: _emailController,
+                hint: "ex: ana.silva@email.com",
+                icon: LucideIcons.mail,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 18),
+
+              _buildInputLabel("Senha *"),
+              _buildTextField(
+                controller: _passwordController,
+                hint: "Mínimo 6 caracteres",
+                icon: LucideIcons.lock,
+                obscureText: _obscurePassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              _buildInputLabel("Cargo desejado (opcional)"),
+              _buildTextField(
+                controller: _desiredRoleController,
+                hint: "ex: Desenvolvedor Flutter, Designer UX",
+                icon: LucideIcons.briefcase,
+              ),
+              const SizedBox(height: 12),
+
+              // Info card on progressive curriculum
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4), // green-50
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(LucideIcons.sparkles, size: 18, color: Color(0xFF16A34A)),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Cadastro ágil: você poderá complementar soft skills, hard skills, pretensão salarial e foto no seu Perfil a qualquer momento.",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF166534),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 28),
 
-              // Register Button
+              // Submit button
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -290,6 +263,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     elevation: 4,
+                    shadowColor: AppColors.primary.withValues(alpha: 0.3),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -304,28 +278,43 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                         )
                       : const Text(
-                          "Criar Conta e Entrar",
+                          "Criar minha conta",
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 18,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                 ),
               ),
+              const SizedBox(height: 24),
 
-              const SizedBox(height: 20),
+              // Enterprise notice (Mobile is candidate exclusive)
               Center(
-                child: TextButton(
-                  onPressed: widget.onBack,
-                  child: const Text(
-                    "Já tem uma conta? Entrar",
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.gray200),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.building2, size: 15, color: AppColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text(
+                        "Empresa contratante? Plataforma Web em breve.",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -333,52 +322,59 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildField(
-    String label,
-    String hint,
-    TextEditingController controller, {
+  Widget _buildInputLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
     bool obscureText = false,
     TextInputType keyboardType = TextInputType.text,
+    Widget? suffixIcon,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary,
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        hintText: hint,
+        hintStyle: const TextStyle(color: AppColors.gray300, fontSize: 14),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        suffixIcon: suffixIcon,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.gray200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.gray200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(
+            color: AppColors.primary,
+            width: 1.5,
           ),
         ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white,
-            hintText: hint,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.gray200),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.gray200),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

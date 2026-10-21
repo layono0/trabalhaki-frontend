@@ -19,51 +19,60 @@ class CandidateProfile {
   const CandidateProfile({
     this.id,
     this.userId,
-    this.name = "Ana Silva",
+    this.name = "",
     this.photoUrl,
-    this.desiredRole = "Desenvolvedora Frontend Pleno",
-    this.area = "Tecnologia",
-    this.experienceYears = 3,
-    this.education = "Ensino Superior Completo",
-    this.city = "São Paulo",
-    this.state = "SP",
+    this.desiredRole = "",
+    this.area = "",
+    this.experienceYears = 0,
+    this.education = "",
+    this.city = "",
+    this.state = "",
     this.country = "Brasil",
-    this.minimumSalaryExpectation = 6000.0,
+    this.minimumSalaryExpectation,
     this.preferredModality = "REMOTE",
-    this.preferredContractType = "CLT / PJ",
-    this.completionPercentage = 85,
-    this.skills = const ["React", "TypeScript", "Tailwind CSS", "Git"],
+    this.preferredContractType = "CLT",
+    this.completionPercentage = 0,
+    this.skills = const [],
   });
 
-  String get role => desiredRole;
-  String get location => "$city, $state".trim().replaceAll(RegExp(r'^,\s*|,\s*$'), '');
-  String get avatarUrl => (photoUrl != null && photoUrl!.isNotEmpty)
-      ? photoUrl!
-      : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop";
-  String get salaryExpectation => minimumSalaryExpectation != null
-      ? "R\$ ${minimumSalaryExpectation!.toStringAsFixed(0)}+"
-      : "A combinar";
+  String get role => desiredRole.isNotEmpty ? desiredRole : "Cargo não informado";
+  String get location {
+    final loc = "$city, $state".trim().replaceAll(RegExp(r'^,\s*|,\s*$'), '');
+    return loc.isNotEmpty ? loc : (country.isNotEmpty ? country : "Localização não informada");
+  }
+
+  String? get avatarUrl =>
+      (photoUrl != null && photoUrl!.trim().isNotEmpty) ? photoUrl!.trim() : null;
+
+  String get salaryExpectation =>
+      (minimumSalaryExpectation != null && minimumSalaryExpectation! > 0)
+          ? "R\$ ${minimumSalaryExpectation!.toStringAsFixed(0)}+"
+          : "A combinar";
+
   String get modality {
     if (preferredModality == 'REMOTE') return 'Remoto';
     if (preferredModality == 'HYBRID') return 'Híbrido';
     if (preferredModality == 'ONSITE') return 'Presencial';
     return preferredModality;
   }
+
   String get contractType => preferredContractType;
 
   factory CandidateProfile.fromJson(Map<String, dynamic> json) {
     List<String> sList = [];
     if (json['skills'] is List) {
       sList = List<String>.from(json['skills'].map((s) => s.toString()));
+    } else if (json['skillNames'] is List) {
+      sList = List<String>.from(json['skillNames'].map((s) => s.toString()));
     }
 
     return CandidateProfile(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? ''),
       userId: json['userId'] is int ? json['userId'] : int.tryParse(json['userId']?.toString() ?? ''),
-      name: json['name']?.toString() ?? 'Candidato',
+      name: json['name']?.toString() ?? '',
       photoUrl: json['photoUrl']?.toString(),
-      desiredRole: json['desiredRole']?.toString() ?? 'Profissional',
-      area: json['area']?.toString() ?? 'Tecnologia',
+      desiredRole: json['desiredRole']?.toString() ?? '',
+      area: json['area']?.toString() ?? '',
       experienceYears: json['experienceYears'] is int
           ? json['experienceYears']
           : int.tryParse(json['experienceYears']?.toString() ?? '') ?? 0,
@@ -78,7 +87,7 @@ class CandidateProfile {
       preferredContractType: json['preferredContractType']?.toString() ?? 'CLT',
       completionPercentage: json['completionPercentage'] is int
           ? json['completionPercentage']
-          : int.tryParse(json['completionPercentage']?.toString() ?? '') ?? 70,
+          : int.tryParse(json['completionPercentage']?.toString() ?? '') ?? 0,
       skills: sList,
     );
   }
@@ -86,7 +95,7 @@ class CandidateProfile {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      'photoUrl': photoUrl,
+      if (photoUrl != null) 'photoUrl': photoUrl,
       'desiredRole': desiredRole,
       'area': area,
       'experienceYears': experienceYears,
@@ -97,6 +106,7 @@ class CandidateProfile {
       'minimumSalaryExpectation': minimumSalaryExpectation,
       'preferredModality': preferredModality,
       'preferredContractType': preferredContractType,
+      'skillNames': skills,
       'skills': skills,
     };
   }

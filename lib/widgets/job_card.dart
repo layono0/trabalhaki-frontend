@@ -1,20 +1,47 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import '../models/job.dart';
 import '../theme/app_theme.dart';
 
 enum SwipeDirection { left, right }
 
+/// Controller to trigger programmatic swipes on the front JobCard.
+class JobCardController {
+  JobCardState? _state;
+
+  void _attach(JobCardState state) {
+    _state = state;
+  }
+
+  void _detach(JobCardState state) {
+    if (_state == state) {
+      _state = null;
+    }
+  }
+
+  bool get hasAttachedCard => _state != null;
+
+  void swipe(SwipeDirection direction) {
+    _state?.swipeCard(direction);
+  }
+}
+
 class JobCard extends StatefulWidget {
   final Job job;
   final bool isFront;
+  final int stackIndex;
+  final JobCardController? controller;
   final void Function(Job job, SwipeDirection direction)? onSwipe;
   final VoidCallback? onClick;
 
   const JobCard({
     required this.job,
     required this.isFront,
+    this.stackIndex = 0,
+    this.controller,
     this.onSwipe,
     this.onClick,
     super.key,
@@ -33,20 +60,54 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..addListener(() {
-        if (_offsetAnimation != null) {
-          setState(() {
-            _dragOffset = _offsetAnimation!.value;
-          });
-        }
-      });
+    _animController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 320),
+        )..addListener(() {
+          if (_offsetAnimation != null) {
+            setState(() {
+              _dragOffset = _offsetAnimation!.value;
+            });
+          }
+        });
+
+    if (widget.isFront) {
+      widget.controller?._attach(this);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _animController.duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 320);
+  }
+
+  @override
+  void didUpdateWidget(covariant JobCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.isFront != widget.isFront) {
+      oldWidget.controller?._detach(this);
+      if (widget.isFront) {
+        widget.controller?._attach(this);
+      }
+    }
+
+    // Reset animation and swipe state whenever a different job is loaded in this state
+    if (oldWidget.job.id != widget.job.id) {
+      _animController.stop();
+      _isSwipingOut = false;
+      _dragOffset = Offset.zero;
+      _offsetAnimation = null;
+    }
   }
 
   @override
   void dispose() {
+    widget.controller?._detach(this);
     _animController.dispose();
     super.dispose();
   }
@@ -54,17 +115,23 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
   void swipeCard(SwipeDirection direction) {
     if (_isSwipingOut) return;
     _isSwipingOut = true;
-    final targetX = direction == SwipeDirection.right ? 600.0 : -600.0;
+    final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 500.0;
+    final targetX = direction == SwipeDirection.right
+        ? screenWidth * 1.5
+        : -screenWidth * 1.5;
 
-    _offsetAnimation = Tween<Offset>(
-      begin: _dragOffset,
-      end: Offset(targetX, _dragOffset.dy),
-    ).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
-    );
+    _offsetAnimation =
+        Tween<Offset>(
+          begin: _dragOffset,
+          end: Offset(targetX, _dragOffset.dy * 1.2),
+        ).animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+        );
 
     _animController.forward(from: 0).then((_) {
-      widget.onSwipe?.call(widget.job, direction);
+      if (mounted) {
+        widget.onSwipe?.call(widget.job, direction);
+      }
     });
   }
 
@@ -83,26 +150,35 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
     } else if (_dragOffset.dx < -100) {
       swipeCard(SwipeDirection.left);
     } else {
-      // Snap back
-      _offsetAnimation = Tween<Offset>(
-        begin: _dragOffset,
-        end: Offset.zero,
-      ).animate(
-        CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
-      );
-      _animController.forward(from: 0);
+      // Snap back smoothly
+      _offsetAnimation = Tween<Offset>(begin: _dragOffset, end: Offset.zero)
+          .animate(
+            CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+          );
+      _animController.forward(from: 0).then((_) {
+        if (mounted) {
+          setState(() {
+            _dragOffset = Offset.zero;
+            _offsetAnimation = null;
+          });
+        }
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!widget.isFront) {
+      final double yOffset = widget.stackIndex == 1 ? 10.0 : 20.0;
+      final double scale = widget.stackIndex == 1 ? 0.96 : 0.92;
+      final double opacity = widget.stackIndex == 1 ? 0.85 : 0.70;
+
       return Transform.translate(
-        offset: const Offset(0, 10),
+        offset: Offset(0, yOffset),
         child: Transform.scale(
-          scale: 0.95,
+          scale: scale,
           child: Opacity(
-            opacity: 0.8,
+            opacity: opacity,
             child: _buildCardContent(isFrontCard: false),
           ),
         ),
@@ -115,8 +191,11 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
     final passOpacity = (-_dragOffset.dx / 100).clamp(0.0, 1.0);
 
     return GestureDetector(
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
+      onHorizontalDragUpdate: _onPanUpdate,
+      onHorizontalDragEnd: _onPanEnd,
+      onHorizontalDragCancel: () {
+        if (!_isSwipingOut) _onPanEnd(DragEndDetails());
+      },
       onTap: widget.onClick,
       child: Transform.translate(
         offset: _dragOffset,
@@ -150,7 +229,7 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
                         child: const Text(
                           "INTERESSADO",
                           style: TextStyle(
-                            color: AppColors.secondary,
+                            color: AppColors.greenTagText,
                             fontWeight: FontWeight.w900,
                             fontSize: 28,
                             letterSpacing: 1.5,
@@ -202,217 +281,170 @@ class JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildCardContent({required bool isFrontCard}) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
+    final job = widget.job;
+    return ExcludeSemantics(
+      excluding: !isFrontCard,
+      child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 30,
-            offset: const Offset(0, 8),
-          ),
-        ],
-        border: Border.all(color: AppColors.gray100),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Company logo & PostedAt
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.gray100,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            color: AppColors.gray100,
+                            child: Image.network(
+                              job.logo,
+                              fit: BoxFit.cover,
+                              excludeFromSemantics: true,
+                              errorBuilder: (_, _, _) => const Icon(
+                                LucideIcons.building,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.company,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                job.postedAt,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Image.network(
-                      widget.job.logo,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                        LucideIcons.building,
-                        size: 32,
-                        color: AppColors.textSecondary,
+                    const SizedBox(height: 20),
+                    Text(
+                      job.title,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      if (widget.job.compatibilityScore != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.secondary.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Text(
-                            "${widget.job.compatibilityScore}% match",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F766E),
-                            ),
-                          ),
-                        ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gray50,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          widget.job.postedAt,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
-                          ),
+                    const SizedBox(height: 12),
+                    Text(
+                      job.salary,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        height: 1.3,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.greenTagText,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildTag(LucideIcons.mapPin, job.location),
+                        _buildTag(LucideIcons.building, job.type),
+                        _buildTag(LucideIcons.briefcase, job.contract),
+                        if (job.level.isNotEmpty)
+                          _buildTag(LucideIcons.layers, job.level),
+                      ],
+                    ),
+                    if (job.compatibilityScore != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        '${job.compatibilityScore}% de compatibilidade',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              // Title
-              Text(
-                widget.job.title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  height: 1.2,
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Sobre a oportunidade',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      job.description.isEmpty
+                          ? 'Abra os detalhes para saber mais sobre esta vaga.'
+                          : job.description,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-
-              // Company name
-              Text(
-                widget.job.company,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
+            ),
+            if (isFrontCard)
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: widget.onClick,
+                  icon: const Icon(LucideIcons.arrowUpRight, size: 18),
+                  label: const Text('Ver detalhes da vaga'),
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // Badges / Tags
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildTag(
-                    icon: LucideIcons.dollarSign,
-                    label: widget.job.salary,
-                    bgColor: AppColors.greenTagBg,
-                    textColor: AppColors.greenTagText,
-                  ),
-                  _buildTag(
-                    icon: LucideIcons.mapPin,
-                    label: widget.job.location,
-                    bgColor: AppColors.blueTagBg,
-                    textColor: AppColors.blueTagText,
-                  ),
-                  _buildTag(
-                    icon: LucideIcons.building,
-                    label: widget.job.type,
-                    bgColor: AppColors.purpleTagBg,
-                    textColor: AppColors.purpleTagText,
-                  ),
-                  _buildTag(
-                    icon: LucideIcons.briefcase,
-                    label: widget.job.contract,
-                    bgColor: AppColors.gray100,
-                    textColor: const Color(0xFF374151),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Resumo section
-              const Text(
-                "Resumo",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.job.description,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTag({
-    required IconData icon,
-    required String label,
-    required Color bgColor,
-    required Color textColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
+  Widget _buildTag(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: AppColors.gray50,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
             label,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.w500,
+            style: const TextStyle(
               fontSize: 13,
+              color: AppColors.textSecondary,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }

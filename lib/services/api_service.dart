@@ -32,7 +32,11 @@ class LikeResult {
 
 class ApiService {
   static final ApiService instance = ApiService._internal();
-  ApiService._internal();
+  ApiService._internal() : _client = http.Client();
+
+  /// An isolated transport for tests and local previews.
+  ApiService.withClient(http.Client client) : _client = client;
+  final http.Client _client;
 
   String _baseUrl = _defaultBaseUrl();
   String? _accessToken;
@@ -105,7 +109,7 @@ class ApiService {
   Future<AuthUser> login(String email, String password) async {
     final url = Uri.parse('$_baseUrl/auth/login');
     try {
-      final response = await http
+      final response = await _client
           .post(
             url,
             headers: _headers(needsAuth: false),
@@ -147,7 +151,7 @@ class ApiService {
   Future<AuthUser> registerCandidate(String name, String email, String password) async {
     final url = Uri.parse('$_baseUrl/auth/register-candidate');
     try {
-      final response = await http
+      final response = await _client
           .post(
             url,
             headers: _headers(needsAuth: false),
@@ -192,7 +196,7 @@ class ApiService {
     final url = Uri.parse('$_baseUrl/auth/register-company');
     try {
       final cleanCnpj = cnpj.replaceAll(RegExp(r'\D'), '');
-      final response = await http
+      final response = await _client
           .post(
             url,
             headers: _headers(needsAuth: false),
@@ -237,7 +241,7 @@ class ApiService {
     if (_refreshToken == null || _refreshToken!.isEmpty) return false;
     final url = Uri.parse('$_baseUrl/auth/refresh');
     try {
-      final response = await http
+      final response = await _client
           .post(
             url,
             headers: _headers(needsAuth: false),
@@ -274,7 +278,7 @@ class ApiService {
     if (_accessToken == null) return null;
     final url = Uri.parse('$_baseUrl/auth/me');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         _currentUser = AuthUser.fromJson(data);
@@ -308,30 +312,45 @@ class ApiService {
   // JOBS & RECOMMENDATIONS
   // ==========================================
 
-  Future<List<Job>> getJobRecommendations() async {
-    final url = Uri.parse('$_baseUrl/recommendations/jobs');
+  Future<List<Job>> getJobRecommendations({
+    String? modality,
+    String? state,
+    String? city,
+    double? minSalary,
+    int? page,
+    int? size,
+  }) async {
+    final queryParams = <String, String>{};
+    if (modality != null && modality.isNotEmpty) queryParams['modality'] = modality;
+    if (state != null && state.isNotEmpty) queryParams['state'] = state;
+    if (city != null && city.isNotEmpty) queryParams['city'] = city;
+    if (minSalary != null && minSalary > 0) queryParams['minSalary'] = minSalary.toString();
+    if (page != null) queryParams['page'] = page.toString();
+    if (size != null) queryParams['size'] = size.toString();
+
+    final baseUri = Uri.parse('$_baseUrl/recommendations/jobs');
+    final url = queryParams.isNotEmpty
+        ? baseUri.replace(queryParameters: queryParams)
+        : baseUri;
+
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers())
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         return list.map((item) => Job.fromJson(item as Map<String, dynamic>)).toList();
-      } else if (response.statusCode == 403 || response.statusCode == 401) {
-        // Fallback for general jobs
-        return await listActiveJobs();
-      } else {
-        throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
       }
+      throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
     } catch (e) {
       if (e is ApiException) rethrow;
-      // Fallback
-      return await listActiveJobs();
+      throw ApiException('Não foi possível carregar as vagas. Tente novamente.');
     }
   }
 
   Future<List<Job>> listActiveJobs() async {
     final url = Uri.parse('$_baseUrl/jobs');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers());
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         return list.map((item) => Job.fromJson(item as Map<String, dynamic>)).toList();
@@ -346,7 +365,7 @@ class ApiService {
   Future<List<Job>> getMyCompanyJobs() async {
     final url = Uri.parse('$_baseUrl/jobs/my');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers());
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         return list.map((item) => Job.fromJson(item as Map<String, dynamic>)).toList();
@@ -361,7 +380,7 @@ class ApiService {
   Future<Job> createJob(Map<String, dynamic> jobData) async {
     final url = Uri.parse('$_baseUrl/jobs');
     try {
-      final response = await http.post(url,
+      final response = await _client.post(url,
           headers: _headers(), body: jsonEncode(jobData));
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes))
@@ -379,7 +398,7 @@ class ApiService {
   Future<Job> updateJob(String jobId, Map<String, dynamic> jobData) async {
     final url = Uri.parse('$_baseUrl/jobs/$jobId');
     try {
-      final response = await http.put(url,
+      final response = await _client.put(url,
           headers: _headers(), body: jsonEncode(jobData));
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes))
@@ -397,7 +416,7 @@ class ApiService {
   Future<Job> closeJob(String jobId) async {
     final url = Uri.parse('$_baseUrl/jobs/$jobId/close');
     try {
-      final response = await http.patch(url, headers: _headers());
+      final response = await _client.patch(url, headers: _headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes))
             as Map<String, dynamic>;
@@ -418,7 +437,7 @@ class ApiService {
   Future<LikeResult> likeJob(String jobId) async {
     final url = Uri.parse('$_baseUrl/likes/candidate/job/$jobId');
     try {
-      final response = await http.post(url, headers: _headers());
+      final response = await _client.post(url, headers: _headers()).timeout(const Duration(seconds: 15));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final isMatch = data['isMatch'] == true;
@@ -436,7 +455,7 @@ class ApiService {
   Future<List<Job>> getMyLikes() async {
     final url = Uri.parse('$_baseUrl/likes/candidate/my');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers()).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         return list.map((item) {
@@ -457,7 +476,7 @@ class ApiService {
   Future<List<MatchItem>> getMyMatches() async {
     final url = Uri.parse('$_baseUrl/matches');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers()).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         return list.map((item) => MatchItem.fromJson(item as Map<String, dynamic>)).toList();
@@ -472,7 +491,7 @@ class ApiService {
   Future<MatchItem> getMatchById(String matchId) async {
     final url = Uri.parse('$_baseUrl/matches/$matchId');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return MatchItem.fromJson(data);
@@ -491,7 +510,7 @@ class ApiService {
   Future<List<ChatMessage>> getConversation(String matchId) async {
     final url = Uri.parse('$_baseUrl/matches/$matchId/chat');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers()).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final messages = data['messages'] as List? ?? [];
@@ -510,11 +529,11 @@ class ApiService {
   Future<ChatMessage> sendMessage(String matchId, String content) async {
     final url = Uri.parse('$_baseUrl/matches/$matchId/chat/messages');
     try {
-      final response = await http.post(
+      final response = await _client.post(
         url,
         headers: _headers(),
         body: jsonEncode({'content': content.trim()}),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return ChatMessage.fromJson(data, currentUserId: _currentUser?.id);
@@ -533,7 +552,7 @@ class ApiService {
   Future<CandidateProfile> getMyCandidateProfile() async {
     final url = Uri.parse('$_baseUrl/candidates/profile/me');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers()).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return CandidateProfile.fromJson(data);
@@ -548,11 +567,11 @@ class ApiService {
   Future<CandidateProfile> updateCandidateProfile(CandidateProfile profile) async {
     final url = Uri.parse('$_baseUrl/candidates/profile/me');
     try {
-      final response = await http.put(
+      final response = await _client.put(
         url,
         headers: _headers(),
         body: jsonEncode(profile.toJson()),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return CandidateProfile.fromJson(data);
@@ -564,6 +583,36 @@ class ApiService {
     }
   }
 
+  Future<CandidateProfile> uploadCandidatePhoto({
+    required List<int> fileBytes,
+    required String filename,
+  }) async {
+    final url = Uri.parse('$_baseUrl/candidates/profile/me/photo');
+    try {
+      final request = http.MultipartRequest('POST', url);
+      if (_accessToken != null) {
+        request.headers['Authorization'] = 'Bearer $_accessToken';
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          fileBytes,
+          filename: filename,
+        ),
+      );
+      final streamedResponse = await _client.send(request);
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        return CandidateProfile.fromJson(data);
+      }
+      throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao enviar foto de perfil: $e');
+    }
+  }
+
   // ==========================================
   // COMPANY PROFILE
   // ==========================================
@@ -571,7 +620,7 @@ class ApiService {
   Future<CompanyProfile> getMyCompanyProfile() async {
     final url = Uri.parse('$_baseUrl/companies/me');
     try {
-      final response = await http.get(url, headers: _headers());
+      final response = await _client.get(url, headers: _headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return CompanyProfile.fromJson(data);
