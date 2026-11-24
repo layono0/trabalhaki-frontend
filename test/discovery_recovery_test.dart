@@ -116,7 +116,7 @@ void main() {
     tester,
   ) async {
     await showMain(tester, apiFor());
-    await tester.tap(find.text('Pular'));
+    await tester.tap(find.text('Passar'));
     await tester.pumpAndSettle();
     expect(find.text('Você viu todas as vagas.'), findsOneWidget);
     await tester.tap(find.byTooltip('Desfazer último descarte'));
@@ -294,7 +294,15 @@ void main() {
           ]);
         }
         if (request.url.path.endsWith('/chat')) {
-          return jsonResponse({'messages': []});
+          return jsonResponse({
+            'messages': [
+              {
+                'id': 'm0',
+                'content': 'Olá! Podemos conversar sobre a vaga?',
+                'sender': 'company',
+              },
+            ],
+          });
         }
         return jsonResponse([]);
       },
@@ -384,7 +392,15 @@ void main() {
             'sender': 'candidate',
           }, 201);
         }
-        return jsonResponse({'messages': []});
+        return jsonResponse({
+          'messages': [
+            {
+              'id': 'm0',
+              'content': 'Olá! Ficamos interessados no seu perfil.',
+              'sender': 'company',
+            },
+          ],
+        });
       },
     );
     String draft = '';
@@ -417,6 +433,24 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('Chat blocks candidate input until the company sends the first message', (
+    tester,
+  ) async {
+    final api = apiFor(
+      override: (_) async => jsonResponse({'messages': []}),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatView(match: match, api: api, onBack: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Aguardando a empresa iniciar'), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.enabled, isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('Chat load failure is distinct from an empty conversation', (
     tester,
   ) async {
@@ -430,7 +464,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('A conversa não carregou'), findsOneWidget);
-    expect(find.text('Inicie a conversa!'), findsNothing);
+    expect(find.text('Aguardando a empresa iniciar'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }

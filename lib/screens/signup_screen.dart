@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/candidate_profile.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_messages.dart';
 
 class SignupScreen extends StatefulWidget {
   final void Function(String role) onSuccess;
@@ -44,17 +45,17 @@ class _SignupScreenState extends State<SignupScreen> {
     final desiredRole = _desiredRoleController.text.trim();
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = "Por favor, preencha todos os campos obrigatórios.");
+      setState(() => _errorMessage = 'Por favor, preencha todos os campos obrigatórios.');
       return;
     }
 
     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      setState(() => _errorMessage = "Por favor, insira um endereço de e-mail válido.");
+      setState(() => _errorMessage = 'Por favor, insira um endereço de e-mail válido.');
       return;
     }
 
     if (password.length < 6) {
-      setState(() => _errorMessage = "A senha deve ter no mínimo 6 caracteres.");
+      setState(() => _errorMessage = 'A senha deve ter no mínimo 6 caracteres.');
       return;
     }
 
@@ -66,7 +67,6 @@ class _SignupScreenState extends State<SignupScreen> {
     try {
       final user = await ApiService.instance.registerCandidate(name, email, password);
 
-      // If candidate already informed desired role, initialize profile
       if (desiredRole.isNotEmpty) {
         try {
           await ApiService.instance.updateCandidateProfile(
@@ -82,12 +82,15 @@ class _SignupScreenState extends State<SignupScreen> {
       }
 
       if (mounted) {
-        widget.onSuccess(user.isCandidate ? "candidate" : "candidate");
+        widget.onSuccess(user.isCandidate ? 'candidate' : 'candidate');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyErrorMessage(
+            e,
+            fallback: 'Não foi possível criar sua conta agora. Tente novamente.',
+          );
         });
       }
     } finally {
@@ -110,45 +113,26 @@ class _SignupScreenState extends State<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Back Button
-              InkWell(
-                onTap: widget.onBack,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    LucideIcons.chevronLeft,
-                    color: AppColors.textPrimary,
-                    size: 22,
-                  ),
-                ),
+              IconButton.outlined(
+                onPressed: widget.onBack,
+                tooltip: 'Voltar',
+                icon: const Icon(LucideIcons.chevronLeft, size: 22),
               ),
               const SizedBox(height: 24),
 
               // Title & Subtitle
               const Text(
-                "Criar Conta",
+                'Criar Conta',
                 style: TextStyle(
                   fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: 6),
               const Text(
-                "Cadastre-se para encontrar vagas ideais para seu perfil",
+                'Cadastre-se para encontrar vagas alinhadas ao seu perfil',
                 style: TextStyle(
                   fontSize: 15,
                   color: AppColors.textSecondary,
@@ -163,87 +147,118 @@ class _SignupScreenState extends State<SignupScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                    color: AppColors.dangerBg,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.dangerBorder),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(LucideIcons.circleAlert, color: Color(0xFFDC2626), size: 20),
+                      const Icon(
+                        LucideIcons.circleAlert,
+                        color: AppColors.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-              // Form fields
-              _buildInputLabel("Nome completo *"),
-              _buildTextField(
+              // Form fields using shared AppTheme.inputDecorationTheme
+              _buildInputLabel('Nome completo *'),
+              TextField(
                 controller: _nameController,
-                hint: "ex: Ana Silva",
-                icon: LucideIcons.user,
-              ),
-              const SizedBox(height: 18),
-
-              _buildInputLabel("E-mail *"),
-              _buildTextField(
-                controller: _emailController,
-                hint: "ex: ana.silva@email.com",
-                icon: LucideIcons.mail,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 18),
-
-              _buildInputLabel("Senha *"),
-              _buildTextField(
-                controller: _passwordController,
-                hint: "Mínimo 6 caracteres",
-                icon: LucideIcons.lock,
-                obscureText: _obscurePassword,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
-                    color: AppColors.textSecondary,
-                    size: 20,
-                  ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: 'ex: Ana Silva',
+                  prefixIcon: Icon(LucideIcons.user, size: 20),
                 ),
               ),
               const SizedBox(height: 18),
 
-              _buildInputLabel("Cargo desejado (opcional)"),
-              _buildTextField(
-                controller: _desiredRoleController,
-                hint: "ex: Desenvolvedor Flutter, Designer UX",
-                icon: LucideIcons.briefcase,
+              _buildInputLabel('E-mail *'),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: 'ex: ana.silva@email.com',
+                  prefixIcon: Icon(LucideIcons.mail, size: 20),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
 
-              // Info card on progressive curriculum
+              _buildInputLabel('Senha *'),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  hintText: 'Mínimo 6 caracteres',
+                  prefixIcon: const Icon(LucideIcons.lock, size: 20),
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Mostrar senha'
+                        : 'Ocultar senha',
+                    icon: Icon(
+                      _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              _buildInputLabel('Cargo desejado (opcional)'),
+              TextField(
+                controller: _desiredRoleController,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _isLoading ? null : _handleRegister(),
+                decoration: const InputDecoration(
+                  hintText: 'ex: Desenvolvedor Flutter, Designer UX',
+                  prefixIcon: Icon(LucideIcons.briefcase, size: 20),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Info card on progressive curriculum (no Sparkles, unified palette)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4), // green-50
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                  color: AppColors.secondarySoft,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  border: Border.all(
+                    color: AppColors.secondaryText.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(LucideIcons.sparkles, size: 18, color: Color(0xFF16A34A)),
+                    Icon(
+                      LucideIcons.info,
+                      size: 18,
+                      color: AppColors.secondaryText,
+                    ),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        "Cadastro ágil: você poderá complementar soft skills, hard skills, pretensão salarial e foto no seu Perfil a qualquer momento.",
+                        'Cadastro ágil: você poderá complementar competências, pretensão salarial e foto no seu Perfil quando quiser.',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF166534),
+                          fontSize: 13,
+                          color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
@@ -251,63 +266,58 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Submit button
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
+                height: 52,
+                child: FilledButton(
                   onPressed: _isLoading ? null : _handleRegister,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                   child: _isLoading
                       ? const SizedBox(
-                          width: 24,
-                          height: 24,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          "Criar minha conta",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      : const Text('Criar minha conta'),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Enterprise notice (Mobile is candidate exclusive)
+              // Updated enterprise notice (Portal Web is live!)
               Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.gray200),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.building2, size: 15, color: AppColors.textSecondary),
+                      Icon(
+                        LucideIcons.building2,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
                       SizedBox(width: 8),
-                      Text(
-                        "Empresa contratante? Plataforma Web em breve.",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Text(
+                          'Empresa contratante? Acesse o Portal Web do Trabalhaki.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -331,48 +341,6 @@ class _SignupScreenState extends State<SignupScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.white,
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.gray300, fontSize: 14),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
-        suffixIcon: suffixIcon,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 18,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.gray200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.gray200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-            width: 1.5,
-          ),
         ),
       ),
     );

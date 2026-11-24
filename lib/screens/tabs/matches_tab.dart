@@ -48,7 +48,7 @@ class MatchesTab extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'O interesse foi mútuo. Agora vocês podem conversar.',
+            'O interesse foi mútuo. A empresa envia a primeira mensagem.',
             style: TextStyle(
               fontSize: 14,
               height: 1.5,
@@ -69,7 +69,7 @@ class MatchesTab extends StatelessWidget {
           child: matches.isEmpty
               ? StatusView(
                   title: 'As próximas conversas começam aqui',
-                  message: 'Quando você e uma empresa demonstrarem interesse, o match aparecerá aqui para iniciar a conversa.',
+                  message: 'Quando você e uma empresa demonstrarem interesse, o match aparecerá aqui. A empresa envia a primeira mensagem.',
                   actionLabel: onExplore != null
                       ? 'Explorar vagas'
                       : 'Atualizar matches',

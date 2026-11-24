@@ -1,205 +1,289 @@
-import 'dart:ui';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand_mark.dart';
 
-class AuthScreen extends StatefulWidget {
+class AuthScreen extends StatelessWidget {
   final void Function(String screen) onNavigate;
 
   const AuthScreen({super.key, required this.onNavigate});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
-}
-
-class _AuthScreenState extends State<AuthScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          // Animated Abstract Blurred Blobs
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final t = _controller.value;
-              return Stack(
-                children: [
-                  // Blob 1: Primary
-                  Positioned(
-                    top: -size.width * 0.2 + (t * 40),
-                    left: -size.width * 0.1 + (t * 30),
-                    child: Container(
-                      width: size.width * 0.75,
-                      height: size.width * 0.75,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primary.withValues(alpha: 0.35),
-                      ),
-                    ),
-                  ),
-                  // Blob 2: Accent
-                  Positioned(
-                    top: size.height * 0.25 - (t * 40),
-                    right: -size.width * 0.2 + (t * 20),
-                    child: Container(
-                      width: size.width * 0.8,
-                      height: size.width * 0.8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.accent.withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ),
-                  // Blob 3: Secondary (Mint Green)
-                  Positioned(
-                    bottom: -size.width * 0.1 + (t * 30),
-                    left: size.width * 0.15 - (t * 30),
-                    child: Container(
-                      width: size.width * 0.65,
-                      height: size.width * 0.65,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.secondary.withValues(alpha: 0.35),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-
-          // Blur filter over background
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
-            child: Container(color: Colors.transparent),
-          ),
-
-          // Foreground UI Content
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - 40,
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo & Brand
-                  const Row(
-                    children: [
-                      Icon(
-                        LucideIcons.briefcase,
-                        color: AppColors.primary,
-                        size: 32,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        "Trabalhaki",
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  // Top brand header
+                  const TrabalhakiBrandMark(iconSize: 38, fontSize: 22),
 
-                  // Tagline
-                  const Text(
-                    "Encontre oportunidades.\nEncontre seu match.",
-                    style: TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                      height: 1.15,
-                    ),
+                  // Vibrant, concrete job-card preview (replaces empty blurred blobs)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 28),
+                    child: _WelcomeJobPreviewCard(),
                   ),
-                  const SizedBox(height: 48),
 
-                  // Buttons
+                  // Bottom copy & actions
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // "Entrar"
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: () => widget.onNavigate("login"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            elevation: 8,
-                            shadowColor: AppColors.primary.withValues(alpha: 0.3),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            "Entrar",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                      const Text(
+                        'Vagas com salário aberto.\nMatch direto com quem contrata.',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          height: 1.12,
+                          letterSpacing: -0.9,
                         ),
                       ),
-                      const SizedBox(height: 16),
-
-                      // "Criar conta"
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Veja a compatibilidade explicada em cada vaga e dê interesse apenas nas oportunidades que fazem sentido para você.',
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: () => widget.onNavigate("signup"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: AppColors.textPrimary,
-                            elevation: 1,
-                            shadowColor: Colors.black.withValues(alpha: 0.06),
-                            side: const BorderSide(color: AppColors.gray200),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            "Criar conta",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: () => onNavigate('login'),
+                          child: const Text('Entrar'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: OutlinedButton(
+                          onPressed: () => onNavigate('signup'),
+                          child: const Text('Criar conta'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WelcomeJobPreviewCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Subtle tilted backing card to evoke the swipe deck rhythm
+        Positioned(
+          top: 10,
+          left: 12,
+          right: 12,
+          bottom: -10,
+          child: Transform.rotate(
+            angle: 2.2 * math.pi / 180,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.ink,
+                borderRadius: BorderRadius.circular(AppRadii.lg),
+              ),
+            ),
+          ),
+        ),
+        // Front realistic preview card
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.borderStrong),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.ink.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.ink,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'NP',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Nuvem Pay',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          Text(
+                            'Exemplo de vaga',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondarySoft,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.slidersHorizontal,
+                          size: 13,
+                          color: AppColors.secondaryText,
+                        ),
+                        SizedBox(width: 5),
+                        Text(
+                          '94% compatível',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Pessoa Desenvolvedora Flutter Pleno',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  height: 1.2,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'R\$ 8.500 — R\$ 11.000 /mês',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _previewChip(LucideIcons.mapPin, 'Remoto'),
+                  _previewChip(LucideIcons.briefcase, 'CLT'),
+                  _skillChip('Flutter'),
+                  _skillChip('Dart'),
+                  _skillChip('REST API'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _previewChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.textSecondary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _skillChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
       ),
     );
   }

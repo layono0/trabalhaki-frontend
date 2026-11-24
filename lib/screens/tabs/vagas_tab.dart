@@ -324,7 +324,7 @@ class _VagasTabState extends State<VagasTab> {
                                   ? null
                                   : () => _handleAction(SwipeDirection.left),
                               icon: const Icon(LucideIcons.x, size: 18),
-                              label: const Text('Pular'),
+                              label: const Text('Passar'),
                             ),
                           ),
                           const SizedBox(width: 8),

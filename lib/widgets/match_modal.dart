@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/job.dart';
@@ -15,9 +17,9 @@ Future<void> showMatchModal({
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierLabel: "Fechar modal de match",
-    barrierColor: Colors.black.withValues(alpha: 0.70),
-    transitionDuration: const Duration(milliseconds: 350),
+    barrierLabel: 'Fechar modal de match',
+    barrierColor: AppColors.ink.withValues(alpha: 0.65),
+    transitionDuration: const Duration(milliseconds: 300),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
       return MatchModal(
         job: job,
@@ -31,14 +33,14 @@ Future<void> showMatchModal({
       );
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
-      final curvedAnimation = CurvedAnimation(
+      final curved = CurvedAnimation(
         parent: animation,
-        curve: Curves.easeOutBack,
+        curve: Curves.easeOutCubic,
       );
       return FadeTransition(
         opacity: animation,
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curvedAnimation),
+          scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
           child: child,
         ),
       );
@@ -69,57 +71,57 @@ class MatchModal extends StatefulWidget {
 class _MatchModalState extends State<MatchModal>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<Offset> _leftAvatarSlide;
-  late Animation<Offset> _rightAvatarSlide;
-  late Animation<double> _heartScale;
+  late Animation<Offset> _leftCardSlide;
+  late Animation<Offset> _rightCardSlide;
+  late Animation<double> _sealScale;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 520),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
-      ),
-    );
-
-    _leftAvatarSlide = Tween<Offset>(
-      begin: const Offset(-1.2, 0),
+    _leftCardSlide = Tween<Offset>(
+      begin: const Offset(-0.35, 0),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.2, 0.7, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
       ),
     );
 
-    _rightAvatarSlide = Tween<Offset>(
-      begin: const Offset(1.2, 0),
+    _rightCardSlide = Tween<Offset>(
+      begin: const Offset(0.35, 0),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.2, 0.7, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
       ),
     );
 
-    _heartScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.3), weight: 60),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.3, end: 1.0), weight: 40),
+    _sealScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.15), weight: 65),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.15, end: 1.0), weight: 35),
     ]).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.4, 0.9, curve: Curves.easeOut),
+        curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
       ),
     );
 
     _controller.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1.0;
+    }
   }
 
   @override
@@ -128,85 +130,200 @@ class _MatchModalState extends State<MatchModal>
     super.dispose();
   }
 
-  Widget _buildCandidateAvatar() {
+  Widget _buildCandidateMiniCard() {
     final photo = widget.candidatePhoto;
-    final name = widget.candidateName ?? "Candidato";
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : "C";
+    final name = widget.candidateName?.trim().isNotEmpty == true
+        ? widget.candidateName!.trim()
+        : 'Você';
+    final initial = name[0].toUpperCase();
 
-    return Container(
-      width: 76,
-      height: 76,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        color: AppColors.primary,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: photo != null && photo.isNotEmpty
-          ? Image.network(
-              photo,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _buildAvatarFallback(initial),
-            )
-          : _buildAvatarFallback(initial),
-    );
-  }
-
-  Widget _buildAvatarFallback(String initial) {
-    return Container(
-      color: const Color(0xFF241571),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
+    return Transform.rotate(
+      angle: -3.5 * math.pi / 180,
+      child: Container(
+        width: 142,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.ink,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  alignment: Alignment.center,
+                  child: photo != null && photo.isNotEmpty
+                      ? Image.network(
+                          photo,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Text(
+                            initial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          initial,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.job.compatibilityScore != null
+                        ? '${widget.job.compatibilityScore}%'
+                        : 'Perfil',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.secondaryText,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              'Candidato',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCompanyAvatar() {
-    return Container(
-      width: 76,
-      height: 76,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+  Widget _buildJobMiniCard() {
+    return Transform.rotate(
+      angle: 3.5 * math.pi / 180,
+      child: Container(
+        width: 142,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2448),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          border: Border.all(
+            color: AppColors.secondary.withValues(alpha: 0.4),
           ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: widget.job.logo.isNotEmpty
-          ? Image.network(
-              widget.job.logo,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const Icon(
-                LucideIcons.building,
-                color: AppColors.textPrimary,
-                size: 30,
-              ),
-            )
-          : const Icon(
-              LucideIcons.building,
-              color: AppColors.textPrimary,
-              size: 30,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  alignment: Alignment.center,
+                  child: widget.job.logo.isNotEmpty
+                      ? Image.network(
+                          widget.job.logo,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const Icon(
+                            LucideIcons.building,
+                            color: AppColors.ink,
+                            size: 16,
+                          ),
+                        )
+                      : const Icon(
+                          LucideIcons.building,
+                          color: AppColors.ink,
+                          size: 16,
+                        ),
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'VAGA',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.job.company,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              widget.job.salary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFC2C9E6),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -217,43 +334,33 @@ class _MatchModalState extends State<MatchModal>
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          constraints: const BoxConstraints(maxWidth: 360),
+          constraints: const BoxConstraints(maxWidth: 380),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF280F9F),
-                AppColors.primary,
-                Color(0xFF1B0B68),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(24),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
-                blurRadius: 32,
-                spreadRadius: 2,
-                offset: const Offset(0, 10),
+                color: AppColors.ink.withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
             ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1.5,
-            ),
           ),
-          child: Stack(
-            children: [
-              // Content Body
-              SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Celebratory title
-                    ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: Column(
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top Ink Celebration Stage (matches Web MatchCelebrationModal)
+                Container(
+                  width: double.infinity,
+                  color: AppColors.ink,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                  child: Stack(
+                    children: [
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -261,179 +368,185 @@ class _MatchModalState extends State<MatchModal>
                               vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.secondary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppColors.secondary.withValues(alpha: 0.5),
-                              ),
+                              color: AppColors.secondary,
+                              borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  LucideIcons.sparkles,
-                                  color: AppColors.secondary,
+                                  LucideIcons.checkCircle2,
+                                  color: AppColors.ink,
                                   size: 14,
                                 ),
                                 SizedBox(width: 6),
                                 Text(
-                                  "MATCH PERFEITO",
+                                  'MATCH CONFIRMADO',
                                   style: TextStyle(
-                                    color: AppColors.secondary,
+                                    color: AppColors.ink,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            "É um Match!",
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.5,
+                          const SizedBox(height: 20),
+                          // Interlocking Candidate + Job cards with crisp central seal
+                          SizedBox(
+                            height: 114,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SlideTransition(
+                                      position: _leftCardSlide,
+                                      child: _buildCandidateMiniCard(),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    SlideTransition(
+                                      position: _rightCardSlide,
+                                      child: _buildJobMiniCard(),
+                                    ),
+                                  ],
+                                ),
+                                ScaleTransition(
+                                  scale: _sealScale,
+                                  child: Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.secondary,
+                                      borderRadius:
+                                          BorderRadius.circular(AppRadii.md),
+                                      border: Border.all(
+                                        color: AppColors.ink,
+                                        width: 3,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      LucideIcons.checkCircle2,
+                                      color: AppColors.ink,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Avatars & Heart
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SlideTransition(
-                          position: _leftAvatarSlide,
-                          child: _buildCandidateAvatar(),
-                        ),
-                        const SizedBox(width: 10),
-                        ScaleTransition(
-                          scale: _heartScale,
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.favorite,
-                              color: AppColors.secondary,
-                              size: 22,
-                            ),
+                      Positioned(
+                        top: -8,
+                        right: -4,
+                        child: IconButton(
+                          icon: const Icon(
+                            LucideIcons.x,
+                            color: Color(0xFFC2C9E6),
+                            size: 20,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        SlideTransition(
-                          position: _rightAvatarSlide,
-                          child: _buildCompanyAvatar(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Text explanation
-                    Text.rich(
-                      TextSpan(
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.white70,
-                          height: 1.35,
-                        ),
-                        children: [
-                          const TextSpan(text: "Você e a "),
-                          TextSpan(
-                            text: widget.job.company,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const TextSpan(text: "\ntêm interesse mútuo!"),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.job.title,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-
-                    // Action buttons
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: widget.onChatNow,
-                        icon: const Icon(LucideIcons.messageCircle, size: 18),
-                        label: const Text(
-                          "Conversar agora",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.secondary,
-                          foregroundColor: const Color(0xFF1A1A2E),
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                          onPressed: widget.onClose,
+                          tooltip: 'Fechar',
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: TextButton(
-                        onPressed: widget.onClose,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                    ],
+                  ),
+                ),
+
+                // Light Surface Body & Honest Candidate CTAs
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'É um Match!',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                            height: 1.45,
                           ),
+                          children: [
+                            const TextSpan(text: 'Você e '),
+                            TextSpan(
+                              text: widget.job.company,
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: ' têm interesse mútuo na vaga '),
+                            TextSpan(
+                              text: widget.job.title,
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
                         ),
                         child: const Text(
-                          "Continuar buscando vagas",
+                          'No Trabalhaki, a empresa envia a primeira mensagem para abrir o chat.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.35,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.icon(
+                          onPressed: widget.onChatNow,
+                          icon: const Icon(LucideIcons.messageCircle, size: 18),
+                          label: const Text('Ver conversa'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton(
+                          onPressed: widget.onClose,
+                          child: const Text('Continuar buscando vagas'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Close icon button at top right (painted on top so it intercepts taps)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  icon: const Icon(LucideIcons.x, color: Colors.white70, size: 20),
-                  onPressed: widget.onClose,
-                  tooltip: "Fechar",
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

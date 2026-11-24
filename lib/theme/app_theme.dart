@@ -1,34 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Unified 3-step radius scale (8 / 12 / 16px) shared with trabalhaki-web and DESIGN.md.
+class AppRadii {
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+}
+
+/// Official unified Trabalhaki palette (WCAG AA validated, synced with Web CSS tokens).
 class AppColors {
-  // Palette defined in projeto-react-css.md
+  // Core Brand
   static const Color primary = Color(0xFF393BE7);
-  static const Color secondary = Color(0xFF86E5A1);
+  static const Color primaryHover = Color(0xFF2D2FD1);
+  static const Color primarySoft = Color(0xFFEEF0FD);
   static const Color accent = Color(0xFF280F9F);
+  static const Color ink = Color(0xFF12152E);
+
+  // Secondary (Mint — decorative fills use secondary; text/icons ALWAYS use secondaryText)
+  static const Color secondary = Color(0xFF86E5A1);
+  static const Color secondarySoft = Color(0xFFEAFBF0);
+  static const Color secondaryText = Color(0xFF0F6B3A);
+
+  // Neutrals
   static const Color background = Color(0xFFF8F9FC);
   static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceMuted = Color(0xFFF2F4FA);
   static const Color textPrimary = Color(0xFF1A1A2E);
-  static const Color textSecondary = Color(0xFF64748B);
+  static const Color textSecondary = Color(0xFF4A5370);
+  static const Color textHint = Color(0xFF5B6482);
+  static const Color border = Color(0xFFE1E6F2);
+  static const Color borderStrong = Color(0xFFC6CFE4);
 
+  // Semantic Status
   static const Color error = Color(0xFFB42318);
+  static const Color dangerBg = Color(0xFFFEF3F2);
+  static const Color dangerBorder = Color(0xFFFECDCA);
+  static const Color warning = Color(0xFFA14306);
+  static const Color warningBg = Color(0xFFFFFAEB);
+  static const Color warningBorder = Color(0xFFFEDF89);
 
-  // Aux / Neutral colors
-  static const Color gray50 = Color(0xFFF8FAFC);
-  static const Color gray100 = Color(0xFFF1F5F9);
-  static const Color gray200 = Color(0xFFE2E8F0);
-  static const Color gray300 = Color(0xFFCBD5E1);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color redPass = Color(0xFFF87171); // red-400
-  static const Color starYellow = Color(0xFFEAB308); // yellow-500
-
-  // Tag background & text colors
-  static const Color greenTagBg = Color(0xFFF0FDF4); // green-50
-  static const Color greenTagText = Color(0xFF15803D); // green-700
-  static const Color blueTagBg = Color(0xFFEFF6FF); // blue-50
-  static const Color blueTagText = Color(0xFF1D4ED8); // blue-700
-  static const Color purpleTagBg = Color(0xFFFAF5FF); // purple-50
-  static const Color purpleTagText = Color(0xFF7E22CE); // purple-700
+  // Compatibility aliases mapped strictly to official palette
+  static const Color gray50 = background;
+  static const Color gray100 = surfaceMuted;
+  static const Color gray200 = border;
+  static const Color gray300 = borderStrong;
+  static const Color greenTagBg = secondarySoft;
+  static const Color greenTagText = secondaryText;
 }
 
 class AppTheme {
@@ -43,60 +61,119 @@ class AppTheme {
         secondary: AppColors.secondary,
         surface: AppColors.surface,
         onPrimary: Colors.white,
+        onSecondary: AppColors.ink,
         onSurface: AppColors.textPrimary,
         onSurfaceVariant: AppColors.textSecondary,
         error: AppColors.error,
+        outline: AppColors.borderStrong,
       ),
       textTheme: baseTextTheme.apply(
         bodyColor: AppColors.textPrimary,
-        displayColor: AppColors.textPrimary,
+        displayColor: AppColors.ink,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(48, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadii.md),
           ),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(48, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          minimumSize: const Size(48, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           foregroundColor: AppColors.textPrimary,
-          side: const BorderSide(color: AppColors.gray300),
+          backgroundColor: AppColors.surface,
+          side: const BorderSide(color: AppColors.borderStrong),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
+        hintStyle: const TextStyle(
+          color: AppColors.textHint,
+          fontSize: 14,
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIconColor: AppColors.textSecondary,
+        suffixIconColor: AppColors.textSecondary,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: const BorderSide(color: AppColors.borderStrong),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: const BorderSide(color: AppColors.borderStrong),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.75),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.75),
         ),
       ),
       chipTheme: ChipThemeData(
-        side: const BorderSide(color: AppColors.gray300),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        selectedColor: AppColors.secondary.withValues(alpha: 0.3),
-        labelStyle: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+        side: const BorderSide(color: AppColors.borderStrong),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        selectedColor: AppColors.secondarySoft,
+        labelStyle: const TextStyle(
+          fontSize: 14,
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.08),
+        indicatorColor: AppColors.primarySoft,
         elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
@@ -120,11 +197,15 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.textPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: AppColors.ink,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+        ),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),

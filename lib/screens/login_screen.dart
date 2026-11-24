@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_messages.dart';
 
 class LoginScreen extends StatefulWidget {
   final void Function(String role) onLogin;
@@ -18,12 +20,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController =
-      TextEditingController(text: "candidato@trabalhaki.com");
-  final TextEditingController _passwordController =
-      TextEditingController(text: "123456");
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   Future<void> _handleLogin() async {
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = "Por favor preencha email e senha.";
+        _errorMessage = 'Por favor, preencha e-mail e senha.';
       });
       return;
     }
@@ -48,16 +49,20 @@ class _LoginScreenState extends State<LoginScreen> {
         if (user.isCompany) {
           await ApiService.instance.logout();
           setState(() {
-            _errorMessage = "Este aplicativo é exclusivo para candidatos. O portal para empresas estará disponível na versão Web.";
+            _errorMessage =
+                'Este aplicativo é exclusivo para candidatos. Empresas devem acessar o Portal Web do Trabalhaki.';
           });
           return;
         }
-        widget.onLogin("candidate");
+        widget.onLogin('candidate');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyErrorMessage(
+            e,
+            fallback: 'Não foi possível entrar. Confira seu e-mail e senha.',
+          );
         });
       }
     } finally {
@@ -74,21 +79,20 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Configurar URL do Backend"),
+        title: const Text('Configurar servidor (dev)'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "URL atual da API:",
+              'URL atual da API:',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: controller,
               decoration: const InputDecoration(
-                hintText: "http://localhost:8080/api/v1",
-                border: OutlineInputBorder(),
+                hintText: 'http://localhost:8080/api/v1',
               ),
             ),
             const SizedBox(height: 8),
@@ -96,12 +100,14 @@ class _LoginScreenState extends State<LoginScreen> {
               spacing: 8,
               children: [
                 ActionChip(
-                  label: const Text("localhost"),
-                  onPressed: () => controller.text = "http://localhost:8080/api/v1",
+                  label: const Text('localhost'),
+                  onPressed: () =>
+                      controller.text = 'http://localhost:8080/api/v1',
                 ),
                 ActionChip(
-                  label: const Text("Android (10.0.2.2)"),
-                  onPressed: () => controller.text = "http://10.0.2.2:8080/api/v1",
+                  label: const Text('Android (10.0.2.2)'),
+                  onPressed: () =>
+                      controller.text = 'http://10.0.2.2:8080/api/v1',
                 ),
               ],
             ),
@@ -110,9 +116,9 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Cancelar"),
+            child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               await ApiService.instance.setBaseUrl(controller.text);
               if (ctx.mounted) {
@@ -120,11 +126,15 @@ class _LoginScreenState extends State<LoginScreen> {
               }
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("URL atualizada para: ${ApiService.instance.baseUrl}")),
+                  SnackBar(
+                    content: Text(
+                      'URL atualizada para: ${ApiService.instance.baseUrl}',
+                    ),
+                  ),
                 );
               }
             },
-            child: const Text("Salvar"),
+            child: const Text('Salvar'),
           ),
         ],
       ),
@@ -148,57 +158,44 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header row: Back Button & Server Settings
+              // Header row: Back Button & Dev-only Server Settings
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InkWell(
-                    onTap: widget.onBack,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                  IconButton.outlined(
+                    onPressed: widget.onBack,
+                    tooltip: 'Voltar',
+                    icon: const Icon(LucideIcons.chevronLeft, size: 22),
+                  ),
+                  if (kDebugMode)
+                    IconButton(
+                      icon: const Icon(
+                        LucideIcons.settings2,
+                        color: AppColors.textSecondary,
+                        size: 20,
                       ),
-                      child: const Icon(
-                        LucideIcons.chevronLeft,
-                        color: AppColors.textPrimary,
-                        size: 22,
-                      ),
+                      tooltip: 'Configurar Servidor',
+                      onPressed: _showServerConfigDialog,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.settings2, color: AppColors.textSecondary, size: 20),
-                    tooltip: "Configurar Servidor",
-                    onPressed: _showServerConfigDialog,
-                  ),
                 ],
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Title & Subtitle
               const Text(
-                "Bem-vindo de volta",
+                'Bem-vindo de volta',
                 style: TextStyle(
                   fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: 6),
               const Text(
-                "Faça login para continuar",
+                'Entre na sua conta para acompanhar vagas e matches',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   color: AppColors.textSecondary,
                 ),
               ),
@@ -211,100 +208,86 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                    color: AppColors.dangerBg,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.dangerBorder),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(LucideIcons.circleAlert, color: Color(0xFFDC2626), size: 20),
+                      const Icon(
+                        LucideIcons.circleAlert,
+                        color: AppColors.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-              // Form fields
-              // Email
-              const Text(
-                "Email",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
+              // Email (aligned to SignupScreen pattern & InputDecorationTheme)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'E-mail',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 6),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  hintText: "seu@email.com",
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 18,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.gray200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.gray200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
-                      width: 1.5,
-                    ),
-                  ),
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: 'seu@email.com',
+                  prefixIcon: Icon(LucideIcons.mail, size: 20),
                 ),
               ),
               const SizedBox(height: 18),
 
-              // Password
-              const Text(
-                "Senha",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
+              // Password (with visibility toggle & InputDecorationTheme)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'Senha',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 6),
               TextField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _isLoading ? null : _handleLogin(),
                 decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  hintText: "••••••",
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 18,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.gray200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.gray200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
-                      width: 1.5,
+                  hintText: 'Digite sua senha',
+                  prefixIcon: const Icon(LucideIcons.lock, size: 20),
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Mostrar senha'
+                        : 'Ocultar senha',
+                    icon: Icon(
+                      _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                      size: 20,
                     ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
               ),
@@ -313,99 +296,72 @@ class _LoginScreenState extends State<LoginScreen> {
               // Submit button
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
+                height: 52,
+                child: FilledButton(
                   onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                   child: _isLoading
                       ? const SizedBox(
-                          width: 24,
-                          height: 24,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          "Entrar",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      : const Text('Entrar'),
                 ),
               ),
-              const SizedBox(height: 32),
 
-              // Accounts box
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF), // blue-50
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFDBEAFE)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Contas de Demonstração (Clique para preencher):",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1E40AF), // blue-800
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _emailController.text = "candidato@trabalhaki.com";
-                          _passwordController.text = "123456";
-                        });
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFBFDBFE)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(LucideIcons.user, size: 16, color: Color(0xFF2563EB)),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "Candidato: candidato@trabalhaki.com (123456)",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF1E40AF),
-                                ),
-                              ),
+              if (kDebugMode) ...[
+                const SizedBox(height: 28),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            LucideIcons.shieldCheck,
+                            size: 16,
+                            color: AppColors.accent,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Conta local de desenvolvimento',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _emailController.text = 'candidato@trabalhaki.com';
+                            _passwordController.text = '123456';
+                          });
+                        },
+                        icon: const Icon(LucideIcons.user, size: 16),
+                        label: const Text(
+                          'Preencher candidato@trabalhaki.com',
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

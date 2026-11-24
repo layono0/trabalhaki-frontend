@@ -54,28 +54,23 @@ void main() {
       ),
     );
 
-    // Dialog is not open yet
     expect(find.text('É um Match!'), findsNothing);
 
-    // Tap to open modal dialog
     await tester.tap(find.text('Abrir Match'));
     await tester.pumpAndSettle();
 
-    // Verify dialog content is presented
     expect(find.text('É um Match!'), findsOneWidget);
-    expect(find.text('MATCH PERFEITO'), findsOneWidget);
-    expect(find.textContaining('Tech Inovação'), findsOneWidget);
-    expect(find.text('Desenvolvedor Flutter Sênior'), findsOneWidget);
-    expect(find.text('C'), findsOneWidget); // Monogram fallback for Carlos
+    expect(find.text('MATCH CONFIRMADO'), findsOneWidget);
+    expect(find.textContaining('Tech Inovação'), findsWidgets);
+    expect(find.textContaining('Desenvolvedor Flutter Sênior'), findsWidgets);
+    expect(find.text('C'), findsOneWidget);
 
-    // Tap "Continuar buscando vagas"
     final dismissButton = find.text('Continuar buscando vagas');
     expect(dismissButton, findsOneWidget);
     await tester.ensureVisible(dismissButton);
     await tester.tap(dismissButton);
     await tester.pumpAndSettle();
 
-    // Verify dialog is fully dismissed and not lingering
     expect(find.text('É um Match!'), findsNothing);
     expect(chatClicked, isFalse);
   });
@@ -111,17 +106,15 @@ void main() {
 
     expect(find.text('É um Match!'), findsOneWidget);
 
-    // Tap top-right close icon
     final closeButton = find.byTooltip('Fechar');
     expect(closeButton, findsOneWidget);
     await tester.tap(closeButton);
     await tester.pumpAndSettle();
 
-    // Dialog is dismissed
     expect(find.text('É um Match!'), findsNothing);
   });
 
-  testWidgets('showMatchModal triggers onChatNow and dismisses dialog', (WidgetTester tester) async {
+  testWidgets('showMatchModal triggers onChatNow via Ver conversa and dismisses dialog', (WidgetTester tester) async {
     final job = _buildTestJob();
     bool chatClicked = false;
 
@@ -155,11 +148,9 @@ void main() {
 
     expect(find.text('É um Match!'), findsOneWidget);
 
-    // Tap "Conversar agora"
-    await tester.tap(find.text('Conversar agora'));
+    await tester.tap(find.text('Ver conversa'));
     await tester.pumpAndSettle();
 
-    // Verify onChatNow was called and dialog dismissed
     expect(chatClicked, isTrue);
     expect(find.text('É um Match!'), findsNothing);
   });
