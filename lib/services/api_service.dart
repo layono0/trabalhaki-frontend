@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/auth_user.dart';
+import '../models/candidate_certificate.dart';
 import '../models/candidate_profile.dart';
 import '../models/company_profile.dart';
 import '../models/job.dart';
@@ -610,6 +611,71 @@ class ApiService {
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Falha ao enviar foto de perfil: $e');
+    }
+  }
+
+  Future<List<CandidateCertificate>> getMyCertificates() async {
+    final url = Uri.parse('$_baseUrl/candidates/profile/me/certificates');
+    try {
+      final response = await _client.get(url, headers: _headers()).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        return list
+            .whereType<Map<String, dynamic>>()
+            .map(CandidateCertificate.fromJson)
+            .toList();
+      }
+      throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao carregar certificados verificados: $e');
+    }
+  }
+
+  Future<CertificateValidationResult> uploadCandidateCertificate({
+    required List<int> fileBytes,
+    required String filename,
+    String? targetSkill,
+  }) async {
+    final url = Uri.parse('$_baseUrl/candidates/profile/me/certificates');
+    try {
+      final request = http.MultipartRequest('POST', url);
+      if (_accessToken != null) {
+        request.headers['Authorization'] = 'Bearer $_accessToken';
+      }
+      if (targetSkill != null && targetSkill.trim().isNotEmpty) {
+        request.fields['targetSkill'] = targetSkill.trim();
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          fileBytes,
+          filename: filename,
+        ),
+      );
+      final streamedResponse = await _client.send(request).timeout(const Duration(seconds: 25));
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        return CertificateValidationResult.fromJson(data);
+      }
+      throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao validar certificado: $e');
+    }
+  }
+
+  Future<void> deleteCandidateCertificate(int certificateId) async {
+    final url = Uri.parse('$_baseUrl/candidates/profile/me/certificates/$certificateId');
+    try {
+      final response = await _client.delete(url, headers: _headers()).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 204 && response.statusCode != 200) {
+        throw ApiException(_extractErrorMessage(response), statusCode: response.statusCode);
+      }
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Falha ao remover certificado: $e');
     }
   }
 

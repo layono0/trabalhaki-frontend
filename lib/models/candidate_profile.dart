@@ -15,6 +15,9 @@ class CandidateProfile {
   final String preferredContractType;
   final int completionPercentage;
   final List<String> skills;
+  final List<String> verifiedSkills;
+  final int priorityBonusTotal;
+  final int verifiedCertificatesCount;
 
   const CandidateProfile({
     this.id,
@@ -33,6 +36,9 @@ class CandidateProfile {
     this.preferredContractType = "CLT",
     this.completionPercentage = 0,
     this.skills = const [],
+    this.verifiedSkills = const [],
+    this.priorityBonusTotal = 0,
+    this.verifiedCertificatesCount = 0,
   });
 
   String get role => desiredRole.isNotEmpty ? desiredRole : "Cargo não informado";
@@ -66,6 +72,11 @@ class CandidateProfile {
       sList = List<String>.from(json['skillNames'].map((s) => s.toString()));
     }
 
+    List<String> verifiedList = [];
+    if (json['verifiedSkills'] is List) {
+      verifiedList = List<String>.from(json['verifiedSkills'].map((s) => s.toString()));
+    }
+
     return CandidateProfile(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? ''),
       userId: json['userId'] is int ? json['userId'] : int.tryParse(json['userId']?.toString() ?? ''),
@@ -89,6 +100,13 @@ class CandidateProfile {
           ? json['completionPercentage']
           : int.tryParse(json['completionPercentage']?.toString() ?? '') ?? 0,
       skills: sList,
+      verifiedSkills: verifiedList,
+      priorityBonusTotal: json['priorityBonusTotal'] is int
+          ? json['priorityBonusTotal']
+          : int.tryParse(json['priorityBonusTotal']?.toString() ?? '') ?? 0,
+      verifiedCertificatesCount: json['verifiedCertificatesCount'] is int
+          ? json['verifiedCertificatesCount']
+          : int.tryParse(json['verifiedCertificatesCount']?.toString() ?? '') ?? 0,
     );
   }
 

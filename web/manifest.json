@@ -1,11 +1,11 @@
 {
-    "name": "fluttertrabalhaki",
-    "short_name": "fluttertrabalhaki",
+    "name": "Trabalhaki",
+    "short_name": "Trabalhaki",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#393BE7",
+    "theme_color": "#393BE7",
+    "description": "Trabalhaki — Recrutamento por interesse recíproco.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

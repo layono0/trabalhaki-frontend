@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Shared geometric Trabalhaki brand emblem (matches Web BrandMark.tsx).
+/// Shared geometric Trabalhaki Match-T brand emblem (synced 1:1 with Web BrandMark.tsx).
 class TrabalhakiBrandIcon extends StatelessWidget {
   final double size;
   final bool inverted;
@@ -14,77 +14,91 @@ class TrabalhakiBrandIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: inverted ? Colors.white.withValues(alpha: 0.16) : AppColors.primary,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        border: inverted
-            ? Border.all(color: Colors.white.withValues(alpha: 0.25))
-            : null,
-      ),
-      child: Center(
-        child: SizedBox(
-          width: size * 0.62,
-          height: size * 0.62,
-          child: CustomPaint(painter: _BrandEmblemPainter()),
+      child: CustomPaint(
+        painter: _MatchTEmblemPainter(
+          backgroundColor: AppColors.primary,
+          borderOpacity: inverted ? 0.22 : 0.14,
         ),
       ),
     );
   }
 }
 
-class _BrandEmblemPainter extends CustomPainter {
+class _MatchTEmblemPainter extends CustomPainter {
+  final Color backgroundColor;
+  final double borderOpacity;
+
+  const _MatchTEmblemPainter({
+    required this.backgroundColor,
+    required this.borderOpacity,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
-    final sx = size.width / 24.0;
-    final sy = size.height / 24.0;
+    final sx = size.width / 32.0;
+    final sy = size.height / 32.0;
     canvas.save();
     canvas.scale(sx, sy);
 
-    // Back card
-    final backPaint = Paint()..color = Colors.white.withValues(alpha: 0.36);
+    // Outer rounded tile (32x32, rx=9)
+    final bgPaint = Paint()..color = backgroundColor;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(3, 3.5, 11, 13.5),
-        const Radius.circular(3),
+        const Rect.fromLTWH(0, 0, 32, 32),
+        const Radius.circular(9),
       ),
-      backPaint,
+      bgPaint,
     );
 
-    // Front card
-    final frontPaint = Paint()..color = Colors.white;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(10, 7, 11, 13.5),
-        const Radius.circular(3),
-      ),
-      frontPaint,
-    );
-
-    // Match check inside front card
-    final checkPaint = Paint()
-      ..color = AppColors.ink
-      ..strokeWidth = 2.2
+    // Subtle translucent specular border
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: borderOpacity)
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path()
-      ..moveTo(13, 13.75)
-      ..lineTo(14.75, 15.5)
-      ..lineTo(18.25, 11.75);
-    canvas.drawPath(path, checkPaint);
+      ..strokeWidth = 1.0;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(0.5, 0.5, 31, 31),
+        const Radius.circular(8.5),
+      ),
+      borderPaint,
+    );
 
-    // Mint intersection node
-    final dotPaint = Paint()..color = AppColors.secondary;
-    canvas.drawCircle(const Offset(8.5, 7.5), 2.25, dotPaint);
+    // Geometric rounded white "T" stem (exact SVG path coordinates from BrandMark.tsx)
+    final tPaint = Paint()..color = Colors.white;
+    final tPath = Path()
+      ..moveTo(7, 10)
+      ..cubicTo(7, 8.89543, 7.89543, 8, 9, 8)
+      ..lineTo(16, 8)
+      ..cubicTo(17.1046, 8, 18, 8.89543, 18, 10)
+      ..lineTo(18, 22)
+      ..cubicTo(18, 23.1046, 17.1046, 24, 16, 24)
+      ..cubicTo(14.8954, 24, 14, 23.1046, 14, 22)
+      ..lineTo(14, 12)
+      ..lineTo(9, 12)
+      ..cubicTo(7.89543, 12, 7, 11.1046, 7, 10)
+      ..close();
+    canvas.drawPath(tPath, tPaint);
+
+    // Signal Mint locking match spark pill
+    final sparkPaint = Paint()..color = AppColors.secondary;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(20, 8, 5, 4),
+        const Radius.circular(2),
+      ),
+      sparkPaint,
+    );
 
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MatchTEmblemPainter oldDelegate) =>
+      oldDelegate.backgroundColor != backgroundColor ||
+      oldDelegate.borderOpacity != borderOpacity;
 }
 
 class TrabalhakiBrandMark extends StatelessWidget {

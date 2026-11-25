@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:fluttertrabalhaki/models/auth_user.dart';
+import 'package:fluttertrabalhaki/models/candidate_certificate.dart';
 import 'package:fluttertrabalhaki/models/job.dart';
 import 'package:fluttertrabalhaki/models/candidate_profile.dart';
 import 'package:fluttertrabalhaki/models/company_profile.dart';
@@ -146,6 +147,59 @@ void main() {
       expect(emptyProfile.completionPercentage, 0);
       expect(emptyProfile.skills, isEmpty);
       expect(emptyProfile.avatarUrl, isNull);
+    });
+
+    test('CandidateProfile and CertificateValidationResult parse verified priority fields', () {
+      final profileJson = {
+        "id": 1,
+        "userId": 2,
+        "name": "João Silva",
+        "skills": ["Java", "AWS"],
+        "verifiedSkills": ["AWS"],
+        "priorityBonusTotal": 8,
+        "verifiedCertificatesCount": 1
+      };
+      final profile = CandidateProfile.fromJson(profileJson);
+      expect(profile.verifiedSkills, ["AWS"]);
+      expect(profile.priorityBonusTotal, 8);
+      expect(profile.verifiedCertificatesCount, 1);
+
+      final validResult = CertificateValidationResult.fromJson({
+        "accepted": true,
+        "status": "VERIFIED",
+        "certificateId": 10,
+        "courseTitle": "AWS Solutions Architect",
+        "institutionName": "Amazon Web Services (AWS)",
+        "institutionTier": 1,
+        "verifiedSkills": ["AWS"],
+        "priorityBonus": 8,
+        "trustScore": 96,
+        "fraudRiskScore": 0,
+        "forensicChecks": [
+          {
+            "code": "MAGIC_SIGNATURE",
+            "severity": "INFO",
+            "passed": true,
+            "points": 0,
+            "detail": "Assinatura íntegra."
+          }
+        ],
+        "summary": "Certificado validado."
+      });
+      expect(validResult.accepted, true);
+      expect(validResult.priorityBonus, 8);
+      expect(validResult.forensicChecks.length, 1);
+      expect(validResult.forensicChecks.first.passed, true);
+
+      final rejectedResult = CertificateValidationResult.fromJson({
+        "accepted": false,
+        "status": "REJECTED",
+        "fraudRiskScore": 75,
+        "rejectionReasons": ["Metadados indicam edição no Adobe Photoshop."],
+      });
+      expect(rejectedResult.accepted, false);
+      expect(rejectedResult.fraudRiskScore, 75);
+      expect(rejectedResult.rejectionReasons.first, contains("Photoshop"));
     });
 
     test('CompanyProfile model deserialization', () {

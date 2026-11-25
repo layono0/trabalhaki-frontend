@@ -1,8 +1,12 @@
+import 'dart:io' show File, Platform, Process;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../models/candidate_certificate.dart';
 import '../../models/candidate_profile.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/demo_certificates.dart';
 import '../../utils/error_messages.dart';
 
 const List<String> _brazilStates = [
@@ -25,6 +29,7 @@ class _ProfileTabState extends State<ProfileTab> {
   ApiService get _api => widget.api ?? ApiService.instance;
   bool _isLoading = true;
   CandidateProfile? _candidateProfile;
+  List<CandidateCertificate> _certificates = [];
   String? _errorMessage;
 
   @override
@@ -41,7 +46,18 @@ class _ProfileTabState extends State<ProfileTab> {
 
     try {
       final profile = await _api.getMyCandidateProfile();
-      if (mounted) setState(() => _candidateProfile = profile);
+      List<CandidateCertificate> certs = [];
+      try {
+        certs = await _api.getMyCertificates();
+      } catch (_) {
+        // Keep profile loading resilient if certificates endpoint is unavailable
+      }
+      if (mounted) {
+        setState(() {
+          _candidateProfile = profile;
+          _certificates = certs;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(
@@ -205,6 +221,49 @@ class _ProfileTabState extends State<ProfileTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Perfil atualizado com sucesso!')),
       );
+    }
+  }
+
+  Future<void> _openCertificateVerifierSheet() async {
+    if (_candidateProfile == null) return;
+    final verified = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (_) => _CertificateVerifierSheet(
+        profile: _candidateProfile!,
+        api: _api,
+      ),
+    );
+    if (verified == true && mounted) {
+      await _loadProfile();
+    }
+  }
+
+  Future<void> _deleteCertificate(CandidateCertificate cert) async {
+    try {
+      await _api.deleteCandidateCertificate(cert.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Certificado removido do perfil.')),
+        );
+        await _loadProfile();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                e,
+                fallback: 'Não foi possível remover o certificado.',
+              ),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -499,26 +558,46 @@ class _ProfileTabState extends State<ProfileTab> {
                   spacing: 8,
                   runSpacing: 8,
                   children: candidate.skills
-                      .map(
-                        (s) => Container(
+                      .map((s) {
+                        final isVerified = candidate.verifiedSkills.any(
+                          (vs) => vs.trim().toLowerCase() == s.trim().toLowerCase(),
+                        );
+                        return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 11,
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primarySoft,
+                            color: isVerified
+                                ? AppColors.secondarySoft
+                                : AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(AppRadii.sm),
                           ),
-                          child: Text(
-                            s,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isVerified) ...[
+                                const Icon(
+                                  LucideIcons.shieldCheck,
+                                  size: 14,
+                                  color: AppColors.secondaryText,
+                                ),
+                                const SizedBox(width: 5),
+                              ],
+                              Text(
+                                s,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isVerified
+                                      ? AppColors.secondaryText
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      )
+                        );
+                      })
                       .toList(),
                 ),
               ],
@@ -593,6 +672,173 @@ class _ProfileTabState extends State<ProfileTab> {
                 label: 'Contratação',
                 value: candidate.contractType,
                 hasBorder: false,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Verificador de Competências (Certificados + Antifraude + Prioridade)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        LucideIcons.shieldCheck,
+                        size: 20,
+                        color: AppColors.secondaryText,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Verificador de Competências',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (candidate.priorityBonusTotal > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondarySoft,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '+${candidate.priorityBonusTotal} pts prioridade',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Envie certificados emitidos por instituições reconhecidas. A análise antifraude confere metadados, emissor e seu nome completo para liberar prioridade nas vagas.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_certificates.isNotEmpty) ...[
+                for (final cert in _certificates)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cert.courseTitle,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${cert.institutionName} · Nível ${cert.institutionTier} · +${cert.priorityBonus} pts',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                              if (cert.verifiedSkills.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: cert.verifiedSkills
+                                      .map(
+                                        (sk) => Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.secondarySoft,
+                                            borderRadius: BorderRadius.circular(
+                                              AppRadii.sm,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            sk,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.secondaryText,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remover certificado',
+                          icon: const Icon(
+                            LucideIcons.trash2,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () => _deleteCertificate(cert),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _openCertificateVerifierSheet,
+                  icon: const Icon(LucideIcons.fileCheck2, size: 18),
+                  label: const Text('Validar novo certificado'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Confere emissor, titularidade e metadados; não substitui avaliação prática.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textHint,
+                ),
               ),
             ],
           ),
@@ -1059,6 +1305,385 @@ class _EditCandidateProfileScreenState
         fontSize: 15,
         fontWeight: FontWeight.w800,
         color: AppColors.ink,
+      ),
+    );
+  }
+}
+
+class _CertificateVerifierSheet extends StatefulWidget {
+  final CandidateProfile profile;
+  final ApiService api;
+
+  const _CertificateVerifierSheet({
+    required this.profile,
+    required this.api,
+  });
+
+  @override
+  State<_CertificateVerifierSheet> createState() =>
+      _CertificateVerifierSheetState();
+}
+
+class _CertificateVerifierSheetState extends State<_CertificateVerifierSheet> {
+  final TextEditingController _pathCtrl = TextEditingController();
+  final TextEditingController _skillCtrl = TextEditingController();
+  bool _submitting = false;
+  bool _verifiedAtLeastOne = false;
+  String? _error;
+  CertificateValidationResult? _result;
+
+  @override
+  void dispose() {
+    _pathCtrl.dispose();
+    _skillCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFileDesktop() async {
+    if (kIsWeb || !Platform.isLinux) {
+      setState(() {
+        _error =
+            'Informe o caminho do arquivo PDF/PNG/JPEG abaixo para enviar.';
+      });
+      return;
+    }
+    try {
+      final res = await Process.run('zenity', [
+        '--file-selection',
+        '--title=Selecionar certificado (PDF, PNG ou JPEG)',
+        '--file-filter=Certificados | *.pdf *.png *.jpg *.jpeg',
+      ]);
+      if (res.exitCode == 0) {
+        final selected = res.stdout.toString().trim();
+        if (selected.isNotEmpty) {
+          setState(() {
+            _pathCtrl.text = selected;
+            _error = null;
+          });
+        }
+      }
+    } catch (_) {
+      setState(() {
+        _error = 'Não foi possível abrir o seletor; digite o caminho do arquivo.';
+      });
+    }
+  }
+
+  Future<void> _submitBytes(List<int> bytes, String filename) async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+      _result = null;
+    });
+    try {
+      final res = await widget.api.uploadCandidateCertificate(
+        fileBytes: bytes,
+        filename: filename,
+        targetSkill: _skillCtrl.text.trim().isNotEmpty ? _skillCtrl.text.trim() : null,
+      );
+      if (mounted) {
+        setState(() {
+          _result = res;
+          if (res.accepted) _verifiedAtLeastOne = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = friendlyErrorMessage(
+            e,
+            fallback: 'Não foi possível validar o certificado agora.',
+          );
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _submitFromPath() async {
+    final path = _pathCtrl.text.trim();
+    if (path.isEmpty) {
+      setState(() => _error = 'Selecione ou informe o caminho de um arquivo PDF, PNG ou JPEG.');
+      return;
+    }
+    if (kIsWeb) {
+      setState(() => _error = 'Leitura por caminho local indisponível na Web.');
+      return;
+    }
+    final file = File(path);
+    if (!await file.exists()) {
+      setState(() => _error = 'Arquivo não encontrado no caminho informado.');
+      return;
+    }
+    final bytes = await file.readAsBytes();
+    final filename = path.split('/').last;
+    await _submitBytes(bytes, filename);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final holderName = widget.profile.name.trim().isNotEmpty
+        ? widget.profile.name.trim()
+        : 'Candidato';
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(_verifiedAtLeastOne);
+      },
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          0,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Verificador de Competências',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Fechar',
+                    icon: const Icon(LucideIcons.x),
+                    onPressed: () =>
+                        Navigator.of(context).pop(_verifiedAtLeastOne),
+                  ),
+                ],
+              ),
+              Text(
+                'Titular esperado: $holderName',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _skillCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Competência alvo (opcional)',
+                  hintText: 'Ex: Java, AWS, Flutter',
+                  prefixIcon: Icon(LucideIcons.award, size: 18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _pathCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Arquivo do certificado',
+                        hintText: '/caminho/para/certificado.pdf',
+                        prefixIcon: Icon(LucideIcons.fileText, size: 18),
+                      ),
+                    ),
+                  ),
+                  if (!kIsWeb && Platform.isLinux) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _pickFileDesktop,
+                      icon: const Icon(LucideIcons.folderOpen, size: 16),
+                      label: const Text('Escolher'),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _submitting ? null : _submitFromPath,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(LucideIcons.shieldCheck, size: 18),
+                  label: Text(
+                    _submitting
+                        ? 'Analisando metadados...'
+                        : 'Verificar certificado',
+                  ),
+                ),
+              ),
+              if (kDebugMode) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Demonstração rápida (modo debug):',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _submitting
+                          ? null
+                          : () {
+                              final skill = _skillCtrl.text.trim().isNotEmpty
+                                  ? _skillCtrl.text.trim()
+                                  : 'Java';
+                              _submitBytes(
+                                buildAuthenticAluraPdf(holderName, skill),
+                                'certificado-alura-valido.pdf',
+                              );
+                            },
+                      child: const Text('Simular Alura válido'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _submitting
+                          ? null
+                          : () {
+                              final skill = _skillCtrl.text.trim().isNotEmpty
+                                  ? _skillCtrl.text.trim()
+                                  : 'Java';
+                              _submitBytes(
+                                buildTamperedPhotoshopPdf(holderName, skill),
+                                'certificado-editado-photoshop.pdf',
+                              );
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.dangerBorder),
+                      ),
+                      child: const Text('Simular fraude Photoshop'),
+                    ),
+                  ],
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerBg,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.dangerBorder),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: AppColors.error, fontSize: 13),
+                  ),
+                ),
+              ],
+              if (_result != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _result!.accepted
+                        ? AppColors.secondarySoft
+                        : AppColors.dangerBg,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(
+                      color: _result!.accepted
+                          ? AppColors.secondaryText.withValues(alpha: 0.25)
+                          : AppColors.dangerBorder,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _result!.accepted
+                                ? 'CERTIFICADO VALIDADO'
+                                : 'CERTIFICADO REJEITADO',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: _result!.accepted
+                                  ? AppColors.secondaryText
+                                  : AppColors.error,
+                            ),
+                          ),
+                          Text(
+                            'Risco antifraude: ${_result!.fraudRiskScore}/100',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _result!.summary,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.ink,
+                          height: 1.4,
+                        ),
+                      ),
+                      if (_result!.forensicChecks.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        for (final chk in _result!.forensicChecks)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  chk.passed
+                                      ? LucideIcons.checkCircle2
+                                      : LucideIcons.alertTriangle,
+                                  size: 14,
+                                  color: chk.passed
+                                      ? AppColors.secondaryText
+                                      : AppColors.error,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    chk.detail,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.ink,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
